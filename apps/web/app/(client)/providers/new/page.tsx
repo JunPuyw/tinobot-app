@@ -146,7 +146,7 @@ export default function NewProviderPage() {
       });
 
       if (response.ok) {
-        router.push("/portal/providers");
+        router.push("/providers");
       } else {
         const data = await response.json();
         setErrors({ submit: data.error || "Failed to create provider" });
@@ -165,7 +165,7 @@ export default function NewProviderPage() {
       {/* Header */}
       <div className="mb-8">
         <Link
-          href="/portal/providers"
+          href="/providers"
           className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary transition-colors mb-4"
         >
           <span className="material-symbols-outlined text-lg">arrow_back</span>
@@ -290,7 +290,7 @@ export default function NewProviderPage() {
 
           {/* Actions */}
           <div className="flex gap-3 pt-4 border-t border-border">
-            <Link href="/portal/providers" className="flex-1">
+            <Link href="/providers" className="flex-1">
               <Button type="button" variant="ghost" fullWidth>
                 Cancel
               </Button>

@@ -47,7 +47,7 @@ const LanguageSwitcher = () => (
 function RegisterContent() {
   const useRouterState = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") || "/portal";
+  const redirect = searchParams.get("redirect") || "/";
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -73,7 +73,7 @@ function RegisterContent() {
       if (!res.ok) throw new Error(data.error || "Registration failed");
 
       // New users always go to onboarding to select their persona
-      window.location.href = "/portal/onboarding";
+      window.location.href = "/onboarding";
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -169,7 +169,7 @@ function RegisterContent() {
 
           <div className="pt-2 text-center">
             <p className="text-xs text-muted-foreground font-medium">
-              {translate("Already have an account?")} <Link href="/portal/login" className="text-primary font-bold hover:underline tracking-tight">{translate("Login Instead")}</Link>
+              {translate("Already have an account?")} <Link href="/login" className="text-primary font-bold hover:underline tracking-tight">{translate("Login Instead")}</Link>
             </p>
           </div>
         </form>

@@ -30,7 +30,7 @@ export default function NewWorkspacePage() {
 
       if (res.ok) {
         await refreshAll(); // Refresh global list and user status
-        router.push("/portal"); // Redirect to dashboard
+        router.push("/"); // Redirect to dashboard
       } else {
         const d = await res.json();
         setError(d.error || "Failed to create workspace");

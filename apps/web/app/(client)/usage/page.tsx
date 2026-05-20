@@ -130,8 +130,8 @@ export default function UserUsagePage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-text-main">Usage Analytics</h1>
-          <p className="text-text-muted mt-2">
-            Monitoring <b>{activeWorkspace?.name}</b> • {activeWorkspace?.type}
+          <p className="text-text-muted mt-2 font-medium">
+            Real-time monitoring for your account activity
           </p>
         </div>
         {periodSelector}
@@ -206,7 +206,7 @@ export default function UserUsagePage() {
           ) : !hasChartData ? (
             <div className="h-full flex flex-col items-center justify-center bg-surface/10 rounded-2xl border-2 border-dashed border-border/50 text-text-muted">
               <span className="material-symbols-outlined text-5xl mb-3 opacity-10">show_chart</span>
-              <p className="text-sm font-medium italic">No activity for this workspace yet</p>
+              <p className="text-sm font-medium italic">No activity detected yet</p>
             </div>
           ) : (
             <UsageChart chartData={chartData} viewMode={viewMode} fmt={fmt} fmtCost={fmtCost} />
@@ -245,7 +245,7 @@ export default function UserUsagePage() {
                   <td colSpan={6} className="px-6 py-20 text-center text-text-muted">
                     <div className="flex flex-col items-center gap-2">
                       <span className="material-symbols-outlined text-4xl opacity-10">history</span>
-                      <p className="italic font-medium">No activity records found for this workspace in the selected period.</p>
+                      <p className="italic font-medium">No activity records found for the selected period.</p>
                     </div>
                   </td>
                 </tr>
@@ -255,7 +255,6 @@ export default function UserUsagePage() {
                     <td className="px-6 py-5">
                       <div className="flex flex-col">
                         <span className="font-bold text-text-main group-hover:text-primary transition-colors">{item.rawModel}</span>
-                        <span className="text-[10px] text-text-muted opacity-60">Workspace ID: {activeWorkspace?.id?.slice(0, 8)}...</span>
                       </div>
                     </td>
                     <td className="px-6 py-5">

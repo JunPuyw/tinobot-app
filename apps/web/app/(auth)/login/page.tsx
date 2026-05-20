@@ -47,7 +47,7 @@ const LanguageSwitcher = () => (
 function LoginContent() {
   const useRouterState = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") || "/portal";
+  const redirect = searchParams.get("redirect") || "/usage";
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState(searchParams.get("error") || "");
   const [loading, setLoading] = useState(false);
@@ -72,11 +72,8 @@ function LoginContent() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login failed");
 
-      // Check if user has persona set — if not, redirect to onboarding
-      const meRes = await fetch("/api/auth/user/me");
-      const meData = meRes.ok ? await meRes.json() : {};
-      if (!meData.user?.persona) {
-        window.location.href = "/portal/onboarding";
+      if (data.user?.role === "admin" && redirect === "/usage") {
+        window.location.href = "/admin";
       } else {
         window.location.href = redirect;
       }
@@ -165,7 +162,7 @@ function LoginContent() {
 
           <div className="pt-2 text-center">
             <p className="text-xs text-muted-foreground font-medium">
-              {translate("Don't have an account?")} <Link href="/portal/register" className="text-primary font-bold hover:underline tracking-tight">{translate("Register for Access")}</Link>
+              {translate("Don't have an account?")} <Link href="/register" className="text-primary font-bold hover:underline tracking-tight">{translate("Register for Access")}</Link>
             </p>
           </div>
         </form>

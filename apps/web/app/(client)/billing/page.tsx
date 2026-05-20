@@ -378,6 +378,7 @@ export default function BillingPage() {
             "X-Workspace-Id": activeWorkspace.id
           },
           body: JSON.stringify({
+            provider: "sepay",
             packageId,
             customAmountUSD: null,
             customAmountVND: amount,

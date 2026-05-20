@@ -3,7 +3,6 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import useSWR from "swr";
 
-export type WorkspaceType = "personal" | "team";
 export type WorkspaceRole = "owner" | "admin" | "member";
 
 export const useWorkspaceSWR = <T,>(url: string | null) => {
@@ -13,7 +12,6 @@ export const useWorkspaceSWR = <T,>(url: string | null) => {
 export type Workspace = {
   id: string;
   name: string;
-  type: WorkspaceType;
   role?: WorkspaceRole;
   credits?: number;
   budgetLimitUSD?: number;
@@ -24,17 +22,18 @@ export type Workspace = {
 export type UserPersona = "individual" | "business";
 
 export type User = {
+  id?: string;
   name?: string;
   email?: string;
   persona?: UserPersona;
+  role?: string;       // "user" | "admin"
+  isBanned?: boolean;
 };
 
 type WorkspaceContextValue = {
   isLoading: boolean;
   user: User | null;
-  workspaces: Workspace[];
   activeWorkspace: Workspace | null;
-  switchWorkspace: (workspace: Workspace) => void;
   refreshAll: () => Promise<void>;
   refreshWorkspaces: () => Promise<void>;
   applyOptimisticUpdate: (update: any) => void;
@@ -51,14 +50,10 @@ export function WorkspaceProvider({
   initialUser?: User;
   initialWorkspaces?: Workspace[];
 }) {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>(initialWorkspaces || []);
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(initialWorkspaces?.[0]?.id || "ws-1");
+  const [workspaces] = useState<Workspace[]>(initialWorkspaces || []);
 
   const value = useMemo<WorkspaceContextValue>(() => {
-    const activeWorkspace =
-      workspaces.find((ws) => ws.id === activeWorkspaceId) ??
-      workspaces[0] ??
-      null;
+    const activeWorkspace = workspaces[0] ?? null;
 
     return {
       isLoading: false,
@@ -67,14 +62,12 @@ export function WorkspaceProvider({
         email: "user@tinobot.local",
         persona: "individual",
       },
-      workspaces,
       activeWorkspace,
-      switchWorkspace: (workspace) => setActiveWorkspaceId(workspace.id),
       refreshAll: async () => {},
       refreshWorkspaces: async () => {},
       applyOptimisticUpdate: () => {},
     };
-  }, [activeWorkspaceId, workspaces, initialUser]);
+  }, [workspaces, initialUser]);
 
   return (
     <WorkspaceContext.Provider value={value}>
@@ -89,9 +82,7 @@ export function useWorkspace(): WorkspaceContextValue {
     return {
       isLoading: false,
       user: null,
-      workspaces: [],
       activeWorkspace: null,
-      switchWorkspace: () => {},
       refreshAll: async () => {},
       refreshWorkspaces: async () => {},
       applyOptimisticUpdate: () => {},

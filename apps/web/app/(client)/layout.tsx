@@ -4,11 +4,11 @@ import { getPortalUser } from "@/lib/userAuth";
 import { getWorkspacesByUser } from "@/lib/userDb";
 import { redirect } from "next/navigation";
 
-export default async function AuthenticatedLayout({ children }) {
+export default async function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const user = await getPortalUser();
 
   if (!user) {
-    redirect("/portal/login");
+    redirect("/login");
   }
 
   // Fetch workspaces in parallel on the server

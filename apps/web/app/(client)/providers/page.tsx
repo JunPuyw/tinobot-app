@@ -96,14 +96,6 @@ const ProviderIcon = ({ src, alt, size, className, fallbackText, fallbackColor }
   if (imgError) return <div className={`flex items-center justify-center font-bold text-xs ${className}`} style={{ width: size, height: size, color: fallbackColor }}>{fallbackText}</div>;
   return <img src={src} alt={alt} width={size} height={size} className={className} onError={() => setImgError(true)} />;
 };
-const OAUTH_PROVIDERS: any = {
-  openai: { id: "openai", name: "OpenAI", color: "#10A37F", icon: "smart_toy" },
-  anthropic: { id: "anthropic", name: "Anthropic", color: "#D97757", icon: "psychology" },
-  google: { id: "google", name: "Google Gemini", color: "#4285F4", icon: "temp_preferences_custom" },
-};
-const APIKEY_PROVIDERS: any = { ...OAUTH_PROVIDERS };
-const FREE_PROVIDERS: any = {};
-const FREE_TIER_PROVIDERS: any = {};
 const OPENAI_COMPATIBLE_PREFIX = "openai-compatible";
 const ANTHROPIC_COMPATIBLE_PREFIX = "anthropic-compatible";
 
@@ -231,6 +223,22 @@ import useProviderStore from "../../../store/providerStore";
 export default function ProvidersPage() {
   const { activeWorkspace } = useWorkspace();
   const { connections, nodes: providerNodes, loading, refreshing, fetchIfStale, setConnections, setNodes, error } = useProviderStore();
+
+  const [providerConfigs, setProviderConfigs] = useState<any>({
+    OAUTH_PROVIDERS: {},
+    APIKEY_PROVIDERS: {},
+    FREE_PROVIDERS: {},
+    FREE_TIER_PROVIDERS: {}
+  });
+
+  useEffect(() => {
+    fetch('/api/providers')
+      .then(res => res.json())
+      .then(data => setProviderConfigs(data))
+      .catch(err => console.error("Failed to load providers config", err));
+  }, []);
+
+  const { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS } = providerConfigs;
 
   const [showAddCompatibleModal, setShowAddCompatibleModal] = useState(false);
   const [showAddAnthropicCompatibleModal, setShowAddAnthropicCompatibleModal] =
@@ -466,9 +474,9 @@ export default function ProvidersPage() {
               key={key}
               providerId={key}
               provider={info}
-              stats={getProviderStats(key, "oauth")}
+              stats={getProviderStats(key, "apikey")}
               authType="free"
-              onToggle={(active: boolean) => handleToggleProvider(key, "oauth", active)}
+              onToggle={(active: boolean) => handleToggleProvider(key, "apikey", active)}
             />
           ))}
           {Object.entries(FREE_TIER_PROVIDERS).map(([key, info]) => (
@@ -644,7 +652,7 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }: any) 
   };
 
   return (
-    <Link href={`/portal/providers/${providerId}`} className="group">
+    <Link href={`/providers/${providerId}`} className="group">
       <Card
         padding="xs"
         className={`h-full hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors cursor-pointer ${allDisabled ? "opacity-50" : ""}`}
@@ -770,7 +778,7 @@ function ApiKeyProviderCard({
   };
 
   return (
-    <Link href={`/portal/providers/${providerId}`} className="group">
+    <Link href={`/providers/${providerId}`} className="group">
       <Card
         padding="xs"
         className={`h-full hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors cursor-pointer ${allDisabled ? "opacity-50" : ""}`}

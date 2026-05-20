@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import PropTypes from "prop-types";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -102,20 +102,21 @@ const Modal = ({ isOpen, onClose, title, children, size }: any) => {
   );
 };
 
-const OAuthModal = ({ isOpen, onClose, onSuccess, providerId }: any) => isOpen ? <Modal isOpen={isOpen} onClose={onClose} title="OAuth"><div className="p-4 text-center text-text-muted">OAuth integration for {providerId}</div></Modal> : null;
+const OAuthModal = ({ isOpen, onClose, onSuccess, providerId }: any) => isOpen ? (
+  <Modal isOpen={isOpen} onClose={onClose} title="OAuth">
+    <div className="p-4 flex flex-col gap-4 text-center text-text-muted">
+      <p>OAuth integration for {providerId}</p>
+      <Button onClick={() => onSuccess({ name: `${providerId} OAuth`, apiKey: `mock_oauth_${Date.now()}` })} fullWidth>
+        Simulate OAuth Authorize
+      </Button>
+    </div>
+  </Modal>
+) : null;
 const KiroOAuthWrapper = ({ children }: any) => <>{children}</>;
 const CursorAuthModal = ({ isOpen, onClose, onSuccess }: any) => isOpen ? <Modal isOpen={isOpen} onClose={onClose} title="Cursor Auth"><div className="p-4 text-center text-text-muted">Cursor Auth UI</div></Modal> : null;
 const IFlowCookieModal = ({ isOpen, onClose, onSuccess }: any) => isOpen ? <Modal isOpen={isOpen} onClose={onClose} title="Cookie Auth"><div className="p-4 text-center text-text-muted">Cookie Auth UI</div></Modal> : null;
 const GitLabAuthModal = ({ isOpen, onClose, onSuccess }: any) => isOpen ? <Modal isOpen={isOpen} onClose={onClose} title="GitLab Auth"><div className="p-4 text-center text-text-muted">GitLab Auth UI</div></Modal> : null;
-// Fallback constants since @/shared is missing
-const OAUTH_PROVIDERS: Record<string, any> = {};
-const APIKEY_PROVIDERS: Record<string, any> = {
-  openai: { name: "OpenAI", icon: "smart_toy", color: "#10A37F" },
-  anthropic: { name: "Anthropic", icon: "psychology", color: "#D97757" },
-  google: { name: "Google Gemini", icon: "temp_preferences_custom", color: "#4285F4" },
-};
-const FREE_PROVIDERS: Record<string, any> = {};
-const FREE_TIER_PROVIDERS: Record<string, any> = {};
+// Constants are now fetched from API
 const getProviderAlias = (id: string) => id;
 const isOpenAICompatibleProvider = (id: string) => id === "openai-compatible";
 const isAnthropicCompatibleProvider = (id: string) => id === "anthropic-compatible";
@@ -132,6 +133,7 @@ const useCopyToClipboard = () => {
   return { copied, copy };
 };
 // import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
+import useProviderStore from "@/store/providerStore";
 import { useWorkspace } from "@/context/WorkspaceContext";
 
 export default function ProviderDetailPage() {
@@ -139,9 +141,20 @@ export default function ProviderDetailPage() {
   const router = useRouter();
   const { activeWorkspace, user } = useWorkspace();
   const providerId = params.id;
-  const [connections, setConnections] = useState<any[]>([]);
+  const { 
+    connections: allConnections, 
+    nodes: allNodes, 
+    loading: storeLoading, 
+    fetchIfStale, 
+    refresh,
+    setConnections: setAllConnections,
+    setNodes: setAllNodes 
+  } = useProviderStore();
+
+  const connections = useMemo(() => allConnections.filter((c: any) => c.provider === providerId), [allConnections, providerId]);
+  const providerNode = useMemo(() => allNodes.find((n: any) => n.id === providerId), [allNodes, providerId]);
   const [loading, setLoading] = useState(true);
-  const [providerNode, setProviderNode] = useState<any>(null);
+  const [connectionsLoaded, setConnectionsLoaded] = useState(false);
   const [proxyPools, setProxyPools] = useState<any[]>([]);
   const [showOAuthModal, setShowOAuthModal] = useState(false);
   const [showIFlowCookieModal, setShowIFlowCookieModal] = useState(false);
@@ -166,6 +179,33 @@ export default function ProviderDetailPage() {
   const [kiloFreeModels, setKiloFreeModels] = useState<any[]>([]);
   const { copied, copy } = useCopyToClipboard();
 
+  const [providerConfigs, setProviderConfigs] = useState<any>({
+    OAUTH_PROVIDERS: {},
+    APIKEY_PROVIDERS: {},
+    FREE_PROVIDERS: {},
+    FREE_TIER_PROVIDERS: {}
+  });
+
+  const [configsLoaded, setConfigsLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/providers')
+      .then(res => res.json())
+      .then(data => {
+        setProviderConfigs(data);
+        setConfigsLoaded(true);
+      })
+      .catch(err => console.error("Failed to load providers config", err));
+  }, []);
+
+  useEffect(() => {
+    if (configsLoaded && connectionsLoaded) {
+      setLoading(false);
+    }
+  }, [configsLoaded, connectionsLoaded]);
+
+  const { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, PROVIDER_MODELS } = providerConfigs;
+
   const providerInfo: any = providerNode
     ? {
       id: providerNode.id,
@@ -176,10 +216,11 @@ export default function ProviderDetailPage() {
       baseUrl: providerNode.baseUrl,
       type: providerNode.type,
     }
-    : (OAUTH_PROVIDERS[providerId] || APIKEY_PROVIDERS[providerId] || FREE_PROVIDERS[providerId] || FREE_TIER_PROVIDERS[providerId]);
-  const isOAuth = !!OAUTH_PROVIDERS[providerId] || !!FREE_PROVIDERS[providerId];
-  const models = getModelsByProviderId(providerId);
-  const providerAlias = getProviderAlias(providerId);
+    : (OAUTH_PROVIDERS?.[providerId] || APIKEY_PROVIDERS?.[providerId] || FREE_PROVIDERS?.[providerId] || FREE_TIER_PROVIDERS?.[providerId]);
+
+  const isOAuth = !!OAUTH_PROVIDERS?.[providerId] || providerId === "kiro" || providerId === "iflow";
+  const providerAlias = providerInfo?.alias || getProviderAlias(providerId);
+  const models = (PROVIDER_MODELS && providerAlias) ? (PROVIDER_MODELS[providerAlias] || []) : [];
 
   const isOpenAICompatible = isOpenAICompatibleProvider(providerId);
   const isAnthropicCompatible = isAnthropicCompatibleProvider(providerId);
@@ -217,67 +258,39 @@ export default function ProviderDetailPage() {
       .catch(() => { });
   }, [providerId]);
 
-  const fetchConnectionsLock = useRef(false);
   const fetchConnections = useCallback(async () => {
     if (!activeWorkspace) return;
-    if (fetchConnectionsLock.current) return;
-    fetchConnectionsLock.current = true;
+    setLoading(true);
     try {
+      await fetchIfStale(activeWorkspace.id, true);
+      
+      // Still need proxy pools and settings locally or could move to store later
       const headers = { "X-Workspace-Id": activeWorkspace?.id || "" };
-      const [connectionsRes, nodesRes, proxyPoolsRes, settingsRes] = await Promise.all([
-        fetch("/api/auth/user/providers", { headers, cache: "no-store" }),
-        fetch("/api/provider-nodes", { cache: "no-store" }),
+      const [proxyPoolsRes, settingsRes] = await Promise.all([
         fetch("/api/proxy-pools?isActive=true", { cache: "no-store" }),
         fetch("/api/settings", { cache: "no-store" }),
       ]);
-      const connectionsData = await connectionsRes.json();
-      const nodesData = await nodesRes.json();
       const proxyPoolsData = proxyPoolsRes.ok ? await proxyPoolsRes.json() : { proxyPools: [] };
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
       const isAdmin = (user as any)?.role === "admin";
 
-      if (connectionsRes.ok) {
-        const filtered = (connectionsData.connections || []).filter((c: any) => c.provider === providerId);
-        setConnections(filtered);
-      }
       if (proxyPoolsRes.ok) {
         setProxyPools(proxyPoolsData.proxyPools || []);
       }
 
-      // Only load and allow editing admin settings for... admins
       if (isAdmin) {
         setProviderSettings(settingsData);
         const override = (settingsData.providerStrategies || {})[providerId] || {};
         setProviderStrategy(override.fallbackStrategy || null);
         setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
       }
-
-      let node = null;
-      if (nodesRes.ok) {
-        node = (nodesData.nodes || []).find((entry: any) => entry.id === providerId) || null;
-      }
-
-      // Newly created compatible nodes can be briefly unavailable on one worker.
-      // Retry a few times before showing "Provider not found".
-      if (!node && isCompatible) {
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-          await new Promise((resolve) => setTimeout(resolve, 150));
-          const retryRes = await fetch("/api/provider-nodes", { cache: "no-store" });
-          if (!retryRes.ok) continue;
-          const retryData = await retryRes.json();
-          node = (retryData.nodes || []).find((entry: any) => entry.id === providerId) || null;
-          if (node) break;
-        }
-      }
-
-      setProviderNode(node);
     } catch (error) {
       console.log("Error fetching connections:", error);
     } finally {
+      setConnectionsLoaded(true);
       setLoading(false);
-      setTimeout(() => { fetchConnectionsLock.current = false; }, 500);
     }
-  }, [providerId, activeWorkspace?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [providerId, activeWorkspace?.id, configsLoaded, fetchIfStale, user]); 
 
   const handleUpdateNode = async (formData: any) => {
     try {
@@ -288,8 +301,7 @@ export default function ProviderDetailPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setProviderNode(data.node);
-        await fetchConnections();
+        await fetchIfStale(activeWorkspace?.id, true);
         setShowEditNodeModal(false);
       }
     } catch (error) {
@@ -401,7 +413,7 @@ export default function ProviderDetailPage() {
         headers: { "X-Workspace-Id": activeWorkspace?.id || "" }
       });
       if (res.ok) {
-        setConnections(connections.filter(c => c.id !== id));
+        setAllConnections((prev: any[]) => prev.filter((c: any) => c.id !== id));
       }
     } catch (error) {
       console.log("Error deleting connection:", error);
@@ -439,13 +451,14 @@ export default function ProviderDetailPage() {
   const handleSaveApiKey = async (formData: any) => {
     if (!activeWorkspace) return;
     try {
+      const authType = isOAuth ? "oauth" : "apikey";
       const res = await fetch("/api/auth/user/providers", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Workspace-Id": activeWorkspace?.id || ""
         },
-        body: JSON.stringify({ provider: providerId, ...formData }),
+        body: JSON.stringify({ provider: providerId, authType, ...formData }),
       });
       if (res.ok) {
         await fetchConnections();
@@ -488,7 +501,7 @@ export default function ProviderDetailPage() {
         body: JSON.stringify({ isActive }),
       });
       if (res.ok) {
-        setConnections(prev => prev.map((c: any) => c.id === id ? { ...c, isActive } : c));
+        setAllConnections((prev: any[]) => prev.map((c: any) => c.id === id ? { ...c, isActive } : c));
       }
     } catch (error) {
       console.log("Error updating connection status:", error);
@@ -496,10 +509,21 @@ export default function ProviderDetailPage() {
   };
 
   const handleSwapPriority = async (index1: number, index2: number) => {
+    const conn1 = connections[index1];
+    const conn2 = connections[index2];
+    if (!conn1 || !conn2) return;
+
     // Optimistic update state
-    const newConnections = [...connections];
-    [newConnections[index1], newConnections[index2]] = [newConnections[index2], newConnections[index1]];
-    setConnections(newConnections);
+    const newConnections = [...allConnections];
+    const index1InAll = allConnections.findIndex((c: any) => c.id === conn1.id);
+    const index2InAll = allConnections.findIndex((c: any) => c.id === conn2.id);
+    
+    if (index1InAll === -1 || index2InAll === -1) return;
+
+    const tmp = newConnections[index1InAll];
+    newConnections[index1InAll] = newConnections[index2InAll]!;
+    newConnections[index2InAll] = tmp!;
+    setAllConnections(newConnections);
 
     try {
       const headers = {
@@ -507,12 +531,12 @@ export default function ProviderDetailPage() {
         "X-Workspace-Id": activeWorkspace?.id || ""
       };
       await Promise.all([
-        fetch(`/api/auth/user/providers/${newConnections[index1].id}`, {
+        fetch(`/api/auth/user/providers/${conn1.id}`, {
           method: "PUT",
           headers,
           body: JSON.stringify({ priority: index1 }),
         }),
-        fetch(`/api/auth/user/providers/${newConnections[index2].id}`, {
+        fetch(`/api/auth/user/providers/${conn2.id}`, {
           method: "PUT",
           headers,
           body: JSON.stringify({ priority: index2 }),
@@ -566,8 +590,8 @@ export default function ProviderDetailPage() {
 
   const openBulkProxyModal = () => {
     if (selectedConnections.length === 0) return;
-    const uniquePoolIds = [...new Set(selectedConnections.map((conn: any) => conn.providerSpecificData?.proxyPoolId || "__none__"))];
-    setBulkProxyPoolId(uniquePoolIds.length === 1 ? uniquePoolIds[0] : "__none__");
+    const uniquePoolIds = [...new Set(selectedConnections.map((conn: any) => conn.providerSpecificData?.proxyPoolId || "__none__"))] as string[];
+    setBulkProxyPoolId(uniquePoolIds.length === 1 ? (uniquePoolIds[0] || "__none__") : "__none__");
     setShowBulkProxyModal(true);
   };
 
@@ -621,7 +645,7 @@ export default function ProviderDetailPage() {
   const connectionsList = (
     <div className="flex flex-col divide-y divide-black/[0.03] dark:divide-white/[0.03]">
       {connections
-        .map((conn, index) => (
+        .map((conn: any, index: number) => (
           <div key={conn.id} className="flex items-stretch">
             <div className="flex-1 min-w-0">
               <ConnectionRow
@@ -644,7 +668,7 @@ export default function ProviderDetailPage() {
                       body: JSON.stringify({ proxyPoolId: proxyPoolId || null }),
                     });
                     if (res.ok) {
-                      setConnections(prev => prev.map(c =>
+                      setAllConnections((prev: any[]) => prev.map(c =>
                         c.id === conn.id
                           ? { ...c, providerSpecificData: { ...c.providerSpecificData, proxyPoolId: proxyPoolId || null } }
                           : c
@@ -853,7 +877,7 @@ export default function ProviderDetailPage() {
     );
   };
 
-  if (loading) {
+  if (loading || !configsLoaded) {
     return (
       <div className="flex flex-col gap-8">
         <CardSkeleton />
@@ -866,7 +890,7 @@ export default function ProviderDetailPage() {
     return (
       <div className="text-center py-20">
         <p className="text-text-muted">Provider not found</p>
-        <Link href="/portal/providers" className="text-primary mt-4 inline-block">
+        <Link href="/providers" className="text-primary mt-4 inline-block">
           Back to Providers
         </Link>
       </div>
@@ -889,7 +913,7 @@ export default function ProviderDetailPage() {
       {/* Header */}
       <div>
         <Link
-          href="/portal/providers"
+          href="/providers"
           className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary transition-colors mb-4"
         >
           <span className="material-symbols-outlined text-lg">arrow_back</span>
@@ -964,7 +988,6 @@ export default function ProviderDetailPage() {
                 size="sm"
                 icon="add"
                 onClick={() => setShowAddApiKeyModal(true)}
-                disabled={connections.length > 0}
               >
                 Add
               </Button>
@@ -985,7 +1008,7 @@ export default function ProviderDetailPage() {
                   try {
                     const res = await fetch(`/api/provider-nodes/${providerId}`, { method: "DELETE" });
                     if (res.ok) {
-                      router.push("/portal/providers");
+                      router.push("/providers");
                     }
                   } catch (error) {
                     console.log("Error deleting provider node:", error);
@@ -998,7 +1021,7 @@ export default function ProviderDetailPage() {
           </div>
           {connections.length > 0 && (
             <p className="text-sm text-text-muted">
-              Only one connection is allowed per compatible node. Add another node if you need more connections.
+              Add multiple keys to this node for automatic rotation and high availability.
             </p>
           )}
         </Card>
@@ -1125,17 +1148,15 @@ export default function ProviderDetailPage() {
         <GitLabAuthModal
           isOpen={showOAuthModal}
           providerInfo={providerInfo}
-          onSuccess={handleOAuthSuccess}
+          onSuccess={handleSaveApiKey}
           onClose={() => setShowOAuthModal(false)}
         />
       ) : (
         <OAuthModal
           isOpen={showOAuthModal}
-          provider={providerId}
-          providerInfo={providerInfo}
-          onSuccess={handleOAuthSuccess}
           onClose={() => setShowOAuthModal(false)}
-          oauthMeta={null}
+          onSuccess={handleSaveApiKey}
+          providerId={providerId}
         />
       )}
       {providerId === "iflow" && (
@@ -1152,6 +1173,7 @@ export default function ProviderDetailPage() {
         isCompatible={isCompatible}
         isAnthropic={isAnthropicCompatible}
         proxyPools={proxyPools}
+        noAuth={providerInfo?.noAuth}
         onSave={handleSaveApiKey}
         onClose={() => setShowAddApiKeyModal(false)}
       />
@@ -2073,22 +2095,24 @@ ConnectionRow.propTypes = {
   onResetHealth: PropTypes.func,
 };
 
-function AddApiKeyModal({ isOpen, provider, providerName, isCompatible, isAnthropic, proxyPools, onSave, onClose }: any) {
+function AddApiKeyModal({ isOpen, provider, providerName, isCompatible, isAnthropic, proxyPools, noAuth, onSave, onClose }: any) {
   const NONE_PROXY_POOL_VALUE = "__none__";
 
+  const [isBulk, setIsBulk] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
+    name: `${providerName || provider} Key`,
     apiKey: "",
     priority: 1,
     proxyPoolId: NONE_PROXY_POOL_VALUE,
   });
+  const [bulkKeys, setBulkKeys] = useState("");
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const { activeWorkspace } = useWorkspace();
   const handleValidate = async () => {
-    if (!activeWorkspace) return;
+    if (!activeWorkspace || isBulk) return;
     setValidating(true);
     try {
       const res = await fetch("/api/auth/user/providers/validate", {
@@ -2109,39 +2133,53 @@ function AddApiKeyModal({ isOpen, provider, providerName, isCompatible, isAnthro
   };
 
   const handleSubmit = async () => {
-    if (!provider || !formData.apiKey) return;
+    if (!provider) return;
+    
+    if (!isBulk && !formData.apiKey && !noAuth) return;
+    if (isBulk && !bulkKeys.trim()) return;
 
     setSaving(true);
     try {
-      let isValid = false;
-      try {
-        setValidating(true);
-        setValidationResult(null);
-        const res = await fetch("/api/auth/user/providers/validate", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Workspace-Id": activeWorkspace?.id || ""
-          },
-          body: JSON.stringify({ provider, apiKey: formData.apiKey }),
-        });
-        const data = await res.json();
-        isValid = !!data.valid;
-        setValidationResult(isValid ? "success" : "failed");
-      } catch {
-        setValidationResult("failed");
-      } finally {
-        setValidating(false);
-      }
+      if (isBulk) {
+        const keys = bulkKeys.split("\n").map(k => k.trim()).filter(k => !!k);
+        for (let i = 0; i < keys.length; i++) {
+          await onSave({
+            name: `${formData.name} #${i + 1}`,
+            apiKey: keys[i],
+            priority: formData.priority,
+            proxyPoolId: formData.proxyPoolId === NONE_PROXY_POOL_VALUE ? null : formData.proxyPoolId,
+            testStatus: "unknown",
+          });
+        }
+      } else {
+        let isValid = false;
+        try {
+          setValidating(true);
+          const res = await fetch("/api/auth/user/providers/validate", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Workspace-Id": activeWorkspace?.id || ""
+            },
+            body: JSON.stringify({ provider, apiKey: formData.apiKey }),
+          });
+          const data = await res.json();
+          isValid = !!data.valid;
+        } catch {
+          // ignore validation error
+        } finally {
+          setValidating(false);
+        }
 
-      await onSave({
-        name: formData.name,
-        apiKey: formData.apiKey,
-        priority: formData.priority,
-        proxyPoolId: formData.proxyPoolId === NONE_PROXY_POOL_VALUE ? null : formData.proxyPoolId,
-        testStatus: isValid ? "active" : "unknown",
-        providerSpecificData: undefined
-      });
+        await onSave({
+          name: formData.name,
+          apiKey: formData.apiKey,
+          priority: formData.priority,
+          proxyPoolId: formData.proxyPoolId === NONE_PROXY_POOL_VALUE ? null : formData.proxyPoolId,
+          testStatus: isValid ? "active" : "unknown",
+        });
+      }
+      onClose();
     } finally {
       setSaving(false);
     }
@@ -2152,72 +2190,90 @@ function AddApiKeyModal({ isOpen, provider, providerName, isCompatible, isAnthro
   return (
     <Modal isOpen={isOpen} title={`Add ${providerName || provider} API Key`} onClose={onClose}>
       <div className="flex flex-col gap-4">
-        <Input
-          label="Name"
-          value={formData.name}
-          onChange={(e: any) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="Production Key"
-        />
-        <div className="flex gap-2">
-          <Input
-            label="API Key"
-            type="password"
-            value={formData.apiKey}
-            onChange={(e: any) => setFormData({ ...formData, apiKey: e.target.value })}
-            className="flex-1"
-          />
-          <div className="pt-6">
-            <Button onClick={handleValidate} disabled={!formData.apiKey || validating || saving} variant="secondary">
-              {validating ? "Checking..." : "Check"}
-            </Button>
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-semibold text-text-muted">Mode</label>
+          <div className="flex bg-surface p-1 rounded-lg border border-border">
+            <button 
+              onClick={() => setIsBulk(false)}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${!isBulk ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text-main"}`}
+            >
+              Single
+            </button>
+            <button 
+              onClick={() => setIsBulk(true)}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${isBulk ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text-main"}`}
+            >
+              Bulk Add
+            </button>
           </div>
         </div>
-        {validationResult && (
+
+        <Input
+          label="Base Name"
+          value={formData.name}
+          onChange={(e: any) => setFormData({ ...formData, name: e.target.value })}
+          placeholder="e.g. My Key"
+        />
+
+        {isBulk ? (
+          <div className="flex flex-col gap-1.5 w-full">
+            <label className="text-xs font-semibold text-text-muted">API Keys (One per line)</label>
+            <textarea
+              className="flex min-h-[120px] w-full rounded-xl border border-border bg-transparent px-3 py-2 text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              value={bulkKeys}
+              onChange={(e) => setBulkKeys(e.target.value)}
+              placeholder="sk-...\nsk-...\nsk-..."
+            />
+            <p className="text-[10px] text-text-muted">Each key will be added as a separate connection with automatic numbering.</p>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Input
+              label="API Key"
+              type="password"
+              value={formData.apiKey}
+              onChange={(e: any) => setFormData({ ...formData, apiKey: e.target.value })}
+              className="flex-1"
+            />
+            {!noAuth && (
+              <div className="pt-6">
+                <Button onClick={handleValidate} disabled={!formData.apiKey || validating || saving} variant="secondary">
+                  {validating ? "..." : "Check"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {validationResult && !isBulk && (
           <Badge variant={validationResult === "success" ? "success" : "error"}>
             {validationResult === "success" ? "Valid" : "Invalid"}
           </Badge>
         )}
-        {isCompatible && (
-          <p className="text-xs text-text-muted">
-            {isAnthropic
-              ? `Validation checks ${providerName || "Anthropic Compatible"} by verifying the API key.`
-              : `Validation checks ${providerName || "OpenAI Compatible"} via /models on your base URL.`
-            }
-          </p>
-        )}
-        <Input
-          label="Priority"
-          type="number"
-          value={formData.priority}
-          onChange={(e: any) => setFormData({ ...formData, priority: Number.parseInt(e.target.value) || 1 })}
-        />
 
-        <Select
-          label="Proxy Pool"
-          value={formData.proxyPoolId}
-          onChange={(e: any) => setFormData({ ...formData, proxyPoolId: e.target.value })}
-          options={[
-            { value: NONE_PROXY_POOL_VALUE, label: "None" },
-            ...(proxyPools || []).map((pool: any) => ({ value: pool.id, label: pool.name })),
-          ]}
-          placeholder="None"
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Priority"
+            type="number"
+            value={formData.priority}
+            onChange={(e: any) => setFormData({ ...formData, priority: Number.parseInt(e.target.value) || 1 })}
+          />
+          <Select
+            label="Proxy Pool"
+            value={formData.proxyPoolId}
+            onChange={(e: any) => setFormData({ ...formData, proxyPoolId: e.target.value })}
+            options={[
+              { value: NONE_PROXY_POOL_VALUE, label: "None" },
+              ...(proxyPools || []).map((pool: any) => ({ value: pool.id, label: pool.name })),
+            ]}
+          />
+        </div>
 
-        {(proxyPools || []).length === 0 && (
-          <p className="text-xs text-text-muted">
-            No active proxy pools available. Create one in Proxy Pools page first.
-          </p>
-        )}
-
-        <p className="text-xs text-text-muted">
-          Legacy manual proxy fields are still accepted by API for backward compatibility.
-        </p>
-
-        <div className="flex gap-2">
-          <Button onClick={handleSubmit} fullWidth disabled={!formData.name || !formData.apiKey || saving}>
+        <div className="flex gap-2 mt-2">
+          <Button onClick={handleSubmit} fullWidth disabled={saving || (!isBulk && !formData.apiKey && !noAuth) || (isBulk && !bulkKeys.trim())}>
             {saving ? "Saving..." : "Save"}
           </Button>
-          <Button onClick={onClose} variant="ghost" fullWidth>
+          <Button onClick={onClose} variant="ghost" fullWidth disabled={saving}>
             Cancel
           </Button>
         </div>

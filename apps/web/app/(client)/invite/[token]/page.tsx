@@ -37,7 +37,7 @@ export default function InviteAcceptPage() {
     const handleAccept = async () => {
         if (!user) {
             // Not logged in — redirect to register/login with return URL
-            router.push(`/portal/register?redirect=/portal/invite/${token}`);
+            router.push(`/register?redirect=/invite/${token}`);
             return;
         }
 
@@ -54,7 +54,7 @@ export default function InviteAcceptPage() {
 
             await refreshAll();
             setDone(true);
-            setTimeout(() => router.push("/portal"), 2000);
+            setTimeout(() => router.push("/"), 2000);
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -79,7 +79,7 @@ export default function InviteAcceptPage() {
                     </div>
                     <h1 className="text-2xl font-bold text-text-main mb-2">Lời mời không hợp lệ</h1>
                     <p className="text-text-muted mb-6">{error}</p>
-                    <Link href="/portal" className="text-primary hover:underline text-sm">
+                    <Link href="/" className="text-primary hover:underline text-sm">
                         Về trang chủ
                     </Link>
                 </div>
@@ -161,13 +161,13 @@ export default function InviteAcceptPage() {
                                 Bạn cần đăng nhập hoặc đăng ký để chấp nhận lời mời
                             </p>
                             <button
-                                onClick={() => router.push(`/portal/login?redirect=/portal/invite/${token}`)}
+                                onClick={() => router.push(`/login?redirect=/invite/${token}`)}
                                 className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-all"
                             >
                                 Đăng nhập
                             </button>
                             <button
-                                onClick={() => router.push(`/portal/register?redirect=/portal/invite/${token}`)}
+                                onClick={() => router.push(`/register?redirect=/invite/${token}`)}
                                 className="w-full py-3 rounded-xl border border-border text-text-main font-semibold hover:bg-surface/50 transition-all"
                             >
                                 Tạo tài khoản mới

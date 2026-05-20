@@ -1,0 +1,409 @@
+export const runtime = "nodejs";
+
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, PROVIDER_MODELS } from "@/lib/aimodel";
+
+export async function GET(req: NextRequest, { params }: { params: Promise<{ slug?: string[] }> }) {
+  const resolvedParams = await params;
+  const path = "/" + (resolvedParams.slug?.join("/") || "");
+  const searchParams = req.nextUrl.searchParams;
+
+  // -- AUTH: Get User --
+  async function getUser() {
+    const token = req.cookies.get("auth-token")?.value;
+    if (!token) return null;
+    const user = await prisma.user.findUnique({ where: { id: token } });
+    if (user) {
+      const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim());
+      if (ADMIN_EMAILS.includes(user.email)) {
+        user.role = "admin";
+      }
+    }
+    return user;
+  }
+
+  // --- GOOGLE OAUTH ---
+  if (path === "/auth/user/google") {
+    const redirectUrl = searchParams.get("redirect") || "/usage";
+    const clientId = process.env.GOOGLE_CLIENT_ID || "";
+    const callbackUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/user/google/callback`;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUri)}&response_type=code&scope=email%20profile&state=${encodeURIComponent(redirectUrl)}`;
+    return NextResponse.redirect(authUrl);
+  }
+
+  if (path === "/auth/user/google/callback") {
+    const code = searchParams.get("code");
+    const state = searchParams.get("state") || "/usage";
+    const clientId = process.env.GOOGLE_CLIENT_ID || "";
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
+    const callbackUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/user/google/callback`;
+
+    if (!code) return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/login?error=NoCode`);
+
+    try {
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code, client_id: clientId, client_secret: clientSecret, redirect_uri: callbackUri, grant_type: "authorization_code"
+        })
+      });
+      const tokenData = await tokenRes.json();
+      
+      const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` }
+      });
+      const profile = await userRes.json();
+      
+      if (!profile.email) throw new Error("No email");
+
+      let user = await prisma.user.findFirst({
+        where: { OR: [{ googleId: profile.id }, { email: profile.email }] }
+      });
+      
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            email: profile.email,
+            name: profile.name,
+            googleId: profile.id,
+            apiKeys: {
+              create: { name: "Default Key", key: `tnb_sk_live_${Math.random().toString(36).substring(7)}`, prefix: "sk_live" }
+            }
+          }
+        });
+      } else if (!user.googleId) {
+        user = await prisma.user.update({ where: { id: user.id }, data: { googleId: profile.id } });
+      }
+
+      const res = NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}${state}`);
+      res.cookies.set("auth-token", user.id, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 7 * 24 * 60 * 60 });
+      return res;
+    } catch (e) {
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/login?error=OAuthFailed`);
+    }
+  }
+
+  // --- API HANDLERS ---
+  if (path === "/auth/user/logout") {
+    const res = NextResponse.json({ success: true });
+    res.cookies.delete("auth-token");
+    return res;
+  }
+
+  if (path === "/auth/user/me") {
+    const user = await getUser();
+    if (user) return NextResponse.json({ user });
+    return NextResponse.json({ user: null }, { status: 401 });
+  }
+
+  if (path === "/auth/user/api-keys" || path === "/auth/user/keys") {
+    const user = await getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const keys = await prisma.apiKey.findMany({ where: { userId: user.id } });
+    return NextResponse.json({ keys });
+  }
+
+  if (path === "/auth/user/providers") {
+    const user = await getUser();
+    const connections = await prisma.providerConnection.findMany({
+      where: user ? { userId: user.id } : {}
+    });
+    const normalized = connections.map((c: any) => {
+      if (c.authType && c.authType !== "apikey") return c;
+      const isOAuth = !!(OAUTH_PROVIDERS as any)[c.provider] || c.provider === "kiro" || c.provider === "iflow";
+      return { ...c, authType: isOAuth ? "oauth" : "apikey" };
+    });
+    return NextResponse.json({ connections: normalized });
+  }
+
+  if (path === "/providers") {
+    return NextResponse.json({ OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, PROVIDER_MODELS });
+  }
+
+  if (path === "/models/availability") {
+    const allProviderIds = [...Object.keys(FREE_PROVIDERS), ...Object.keys(FREE_TIER_PROVIDERS), ...Object.keys(OAUTH_PROVIDERS), ...Object.keys(APIKEY_PROVIDERS)];
+    return NextResponse.json({ models: allProviderIds.map(id => ({ provider: id, model: "default-model", status: "available" })), unavailableCount: 0 });
+  }
+
+  if (path === "/models/alias") return NextResponse.json({ aliases: {} });
+  if (path === "/provider-nodes") return NextResponse.json({ nodes: [] });
+  if (path === "/proxy-pools") return NextResponse.json({ pools: [] });
+  if (path === "/settings") return NextResponse.json({ settings: {} });
+  if (path === "/auth/user/usage/stats") return NextResponse.json({ totalRequests: 0, totalCost: 0, totalPromptTokens: 0, totalCompletionTokens: 0, byModel: {} });
+  if (path === "/auth/user/usage/chart") return NextResponse.json([]);
+  if (path === "/auth/user/workspaces") return NextResponse.json({ workspaces: [{ id: "ws-main", name: "Main Workspace", role: "owner", credits: 100.0, budgetLimitUSD: 200, usedUSD: 25.5, reservedUSD: 0 }] });
+
+  // --- Router status ---
+  if (path === "/router/log") {
+    const logs = await prisma.routerLog.findMany({ orderBy: { timestamp: "desc" }, take: 50 });
+    const mappedLogs = logs.map((l: any) => ({ ...l, attempts: JSON.parse(l.attempts) }));
+    return NextResponse.json({ log: mappedLogs });
+  }
+
+  if (path === "/router/keys/status") {
+    const user = await getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const connections = await prisma.providerConnection.findMany({ where: { userId: user.id } });
+    const { getKeyStatuses } = await import("@/lib/router");
+    return NextResponse.json({ statuses: getKeyStatuses(connections as any[]) });
+  }
+
+  // --- ADMIN ROUTES ---
+  if (path.startsWith("/admin/")) {
+    const adminUser = await getUser();
+    if (!adminUser || adminUser.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    if (path === "/admin/stats") {
+      const [totalUsers, totalKeys, totalConnections, bannedUsers, totalLogs] = await Promise.all([
+        prisma.user.count(),
+        prisma.apiKey.count(),
+        prisma.providerConnection.count(),
+        prisma.user.count({ where: { isBanned: true } as any }),
+        prisma.routerLog.count(),
+      ]);
+      return NextResponse.json({ totalUsers, totalKeys, totalConnections, bannedUsers, totalLogs });
+    }
+
+    if (path === "/admin/users") {
+      const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+      const limit = Math.min(100, parseInt(searchParams.get("limit") || "20"));
+      const search = searchParams.get("search") || "";
+      const where = search ? { OR: [{ email: { contains: search } }, { name: { contains: search } }] } : {};
+      const [users, total] = await Promise.all([
+        prisma.user.findMany({
+          where,
+          skip: (page - 1) * limit,
+          take: limit,
+          orderBy: { createdAt: "desc" },
+          include: { _count: { select: { apiKeys: true, connections: true } } },
+        }),
+        prisma.user.count({ where }),
+      ]);
+      return NextResponse.json({ users, total, page, limit, pages: Math.ceil(total / limit) });
+    }
+
+    if (path === "/admin/keys") {
+      const keys = await prisma.apiKey.findMany({
+        orderBy: { createdAt: "desc" },
+        include: { user: { select: { id: true, name: true, email: true } } },
+      });
+      return NextResponse.json({ keys });
+    }
+
+    const userMatch = path.match(/^\/admin\/users\/([^/]+)$/);
+    if (userMatch) {
+      const id = userMatch[1];
+      const user = await prisma.user.findUnique({
+        where: { id },
+        include: {
+          apiKeys: { orderBy: { createdAt: "desc" } },
+          connections: { orderBy: { createdAt: "desc" } },
+        },
+      });
+      if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ user });
+    }
+  }
+
+  return NextResponse.json({ data: null, message: "Mock catch-all GET" });
+}
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ slug?: string[] }> }) {
+  const resolvedParams = await params;
+  const path = "/" + (resolvedParams.slug?.join("/") || "");
+  const body = await req.json().catch(() => ({}));
+
+  async function getUser() {
+    const token = req.cookies.get("auth-token")?.value;
+    if (!token) return null;
+    const user = await prisma.user.findUnique({ where: { id: token } });
+    if (user) {
+      const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim());
+      if (ADMIN_EMAILS.includes(user.email)) {
+        user.role = "admin";
+      }
+    }
+    return user;
+  }
+
+  if (path === "/auth/user/login") {
+    const { email } = body;
+    let user = await prisma.user.findUnique({ where: { email } });
+    
+    // Auto-create user for testing if they don't exist
+    if (!user) {
+      user = await prisma.user.create({
+        data: { 
+          email, 
+          name: email.split("@")[0],
+          apiKeys: { create: { name: "Default Key", key: `tnb_sk_live_${Math.random().toString(36).substring(7)}`, prefix: "sk_live" } } 
+        }
+      });
+    }
+
+    const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim());
+    if (ADMIN_EMAILS.includes(user.email)) {
+      user.role = "admin";
+    }
+
+    const res = NextResponse.json({ token: user.id, user });
+    res.cookies.set("auth-token", user.id, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 7 * 24 * 60 * 60 });
+    return res;
+  }
+
+  if (path === "/auth/user/register") {
+    const { email, name } = body;
+    let user = await prisma.user.findUnique({ where: { email } });
+    if (user) return NextResponse.json({ error: "Exists" }, { status: 400 });
+    user = await prisma.user.create({
+      data: { email, name, apiKeys: { create: { name: "Default Key", key: `tnb_sk_live_${Math.random().toString(36).substring(7)}`, prefix: "sk_live" } } }
+    });
+    const res = NextResponse.json({ token: user.id, user });
+    res.cookies.set("auth-token", user.id, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 7 * 24 * 60 * 60 });
+    return res;
+  }
+
+  if (path === "/auth/user/api-keys") {
+    const user = await getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const newKey = await prisma.apiKey.create({
+      data: { userId: user.id, name: body.name || "Untitled Key", key: `tnb_sk_live_${Math.random().toString(36).substring(7)}`, prefix: "sk_live" }
+    });
+    return NextResponse.json(newKey);
+  }
+
+  if (path === "/auth/user/providers") {
+    const user = await getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const newConn = await prisma.providerConnection.create({
+      data: { userId: user.id, ...body }
+    });
+    return NextResponse.json({ success: true, connection: newConn });
+  }
+
+  if (path === "/auth/user/providers/validate") {
+    return NextResponse.json({ valid: true });
+  }
+
+  if (path.match(/^\/router\/keys\/.+\/reset$/)) {
+    const id = path.split("/")[3];
+    const conn = await prisma.providerConnection.update({
+      where: { id },
+      data: { testStatus: "unknown", lastError: null, lastErrorAt: null, errorCode: null }
+    });
+    return NextResponse.json({ success: true, connection: conn });
+  }
+
+  return NextResponse.json({ error: "Not found POST" }, { status: 404 });
+}
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ slug?: string[] }> }) {
+  const resolvedParams = await params;
+  const path = "/" + (resolvedParams.slug?.join("/") || "");
+  const body = await req.json().catch(() => ({}));
+
+  if (path.match(/^\/auth\/user\/providers\/.+$/)) {
+    const id = path.split("/")[4];
+    await prisma.providerConnection.update({ where: { id }, data: body });
+    return NextResponse.json({ success: true });
+  }
+
+  return NextResponse.json({ error: "Not found PUT" }, { status: 404 });
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ slug?: string[] }> }) {
+  const resolvedParams = await params;
+  const path = "/" + (resolvedParams.slug?.join("/") || "");
+  const body = await req.json().catch(() => ({}));
+
+  async function getUser() {
+    const token = req.cookies.get("auth-token")?.value;
+    if (!token) return null;
+    const user = await prisma.user.findUnique({ where: { id: token } });
+    if (user) {
+      const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim());
+      if (ADMIN_EMAILS.includes(user.email)) user.role = "admin";
+    }
+    return user;
+  }
+
+  if (path.startsWith("/admin/")) {
+    const adminUser = await getUser();
+    if (!adminUser || adminUser.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const userMatch = path.match(/^\/admin\/users\/([^/]+)$/);
+    if (userMatch) {
+      const id = userMatch[1];
+      const { isBanned, role, name } = body;
+      const updated = await prisma.user.update({
+        where: { id },
+        data: {
+          ...(typeof isBanned === "boolean" ? { isBanned } : {}),
+          ...(role ? { role } : {}),
+          ...(name ? { name } : {}),
+        },
+      });
+      return NextResponse.json({ success: true, user: updated });
+    }
+  }
+
+  return NextResponse.json({ error: "Not found PATCH" }, { status: 404 });
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ slug?: string[] }> }) {
+  const resolvedParams = await params;
+  const path = "/" + (resolvedParams.slug?.join("/") || "");
+
+  if (path === "/router/log") {
+    await prisma.routerLog.deleteMany();
+    return NextResponse.json({ success: true });
+  }
+
+  if (path.match(/^\/auth\/user\/providers\/.+$/)) {
+    const id = path.split("/")[4];
+    await prisma.providerConnection.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  }
+  
+  if (path.match(/^\/auth\/user\/api-keys\/.+$/)) {
+    const id = path.split("/")[4];
+    await prisma.apiKey.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  }
+
+  async function getUser() {
+    const token = req.cookies.get("auth-token")?.value;
+    if (!token) return null;
+    const user = await prisma.user.findUnique({ where: { id: token } });
+    if (user) {
+      const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim());
+      if (ADMIN_EMAILS.includes(user.email)) user.role = "admin";
+    }
+    return user;
+  }
+
+  if (path.startsWith("/admin/")) {
+    const adminUser = await getUser();
+    if (!adminUser || adminUser.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const keyMatch = path.match(/^\/admin\/users\/([^/]+)\/keys\/([^/]+)$/);
+    if (keyMatch) {
+      const keyId = keyMatch[2];
+      await prisma.apiKey.delete({ where: { id: keyId } });
+      return NextResponse.json({ success: true });
+    }
+
+    const userMatch = path.match(/^\/admin\/users\/([^/]+)$/);
+    if (userMatch) {
+      const id = userMatch[1];
+      await prisma.apiKey.deleteMany({ where: { userId: id } });
+      await prisma.providerConnection.deleteMany({ where: { userId: id } });
+      await prisma.user.delete({ where: { id } });
+      return NextResponse.json({ success: true });
+    }
+  }
+
+  return NextResponse.json({ error: "Not found DELETE" }, { status: 404 });
+}

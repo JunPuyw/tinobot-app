@@ -56,7 +56,8 @@ export default function FlowAnimation() {
   }, []);
 
   return (
-    <div className="mt-16 w-full max-w-4xl relative h-[360px] hidden md:flex items-center justify-center animate-[float_6s_ease-in-out_infinite]">
+    <>
+      <div className="mt-16 w-full max-w-4xl relative h-[360px] hidden md:flex items-center justify-center animate-[float_6s_ease-in-out_infinite]">
       {/* Tinobot Hub - Center */}
       <div className="relative z-20 w-32 h-32 rounded-full bg-[#23180f] border-2 border-[#f97815] shadow-[0_0_40px_rgba(249,120,21,0.3)] flex flex-col items-center justify-center gap-1 group cursor-pointer hover:scale-105 transition-transform duration-500">
         <div className="flex flex-col items-center justify-center gap-1">
@@ -183,12 +184,39 @@ export default function FlowAnimation() {
         ))}
       </div>
 
-      {/* Mobile fallback */}
-      <div className="md:hidden mt-8 w-full p-4 rounded-lg bg-[#23180f] border border-[#3a2f27]">
-        <p className="text-sm text-center text-gray-400">
-          Interactive diagram visible on desktop
-        </p>
       </div>
-    </div>
+
+      {/* Mobile fallback */}
+      <div className="md:hidden mt-8 w-full p-4 rounded-lg bg-[#23180f] border border-[#3a2f27] flex flex-col items-center gap-6 animate-[float_6s_ease-in-out_infinite]">
+        <div className="flex flex-wrap justify-center gap-4">
+          {CLI_TOOLS.map((tool) => (
+            <div key={tool.id} className="w-14 h-14 rounded-2xl bg-[#23180f] border border-[#3a2f27] flex items-center justify-center p-2 shadow-lg">
+              <ProviderIcon src={tool.image} alt={tool.name} size={40} className="object-contain rounded-xl max-w-[40px] max-h-[40px]" fallbackText={tool.name.slice(0, 2).toUpperCase()} />
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-center">
+           <span className="material-symbols-outlined text-[#f97815] text-3xl animate-bounce">south</span>
+        </div>
+        <div className="w-28 h-28 rounded-full bg-[#23180f] border-2 border-[#f97815] shadow-[0_0_40px_rgba(249,120,21,0.3)] flex flex-col items-center justify-center gap-1 group">
+          <div className="size-8 rounded-lg bg-linear-to-br from-[#f97815] to-orange-700 flex items-center justify-center text-white shadow-lg overflow-hidden border border-white/10">
+            <Image src="/icons/logo.jpg" alt="Logo" width={32} height={32} className="w-full h-full object-cover" />
+          </div>
+          <span className="text-[10px] font-bold text-white tracking-widest uppercase mt-1">
+            Tinobot
+          </span>
+        </div>
+        <div className="flex justify-center">
+           <span className="material-symbols-outlined text-[#f97815] text-3xl animate-bounce">south</span>
+        </div>
+        <div className="flex flex-wrap justify-center gap-3">
+          {PROVIDERS.map((provider) => (
+            <div key={provider.id} className={`px-4 py-2 rounded-lg ${provider.color} ${provider.textColor} flex items-center justify-center font-bold text-xs shadow-lg`}>
+              {provider.name}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }
