@@ -9,6 +9,7 @@
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
+    "@types/express-request-id": "^1.4.3",
     "@types/prop-types": "^15.7.15",
     "prettier": "^3.7.4",
     "prisma": "^7.8.0",

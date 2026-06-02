@@ -34,7 +34,7 @@ function formatContext(ctx: number): string {
 }
 
 function getProviderFromId(id: string): string {
-  const prefix = id.split("/")[0];
+  const prefix = id.split("/")[0] ?? id;
   const map: Record<string, string> = {
     openai: "OpenAI",
     anthropic: "Anthropic",
@@ -56,7 +56,7 @@ function getProviderFromId(id: string): string {
 }
 
 function getProviderColor(id: string): string {
-  const prefix = id.split("/")[0].toLowerCase();
+  const prefix = (id.split("/")[0] ?? id).toLowerCase();
   const colors: Record<string, string> = {
     openai: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
     anthropic: "bg-orange-500/10 text-orange-400 border-orange-500/20",

@@ -3,6 +3,83 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, PROVIDER_MODELS } from "@/lib/aimodel";
+import { randomBytes } from "node:crypto";
+
+const API_KEY_PREFIX = "sk-tinobot";
+const VALID_COMBO_NAME = /^[a-zA-Z0-9_.-]+$/;
+
+function generateApiKey() {
+  return `${API_KEY_PREFIX}-${randomBytes(24).toString("hex")}`;
+}
+
+function parseComboModels(models: string) {
+  try {
+    const parsed = JSON.parse(models);
+    return Array.isArray(parsed) ? parsed.filter((model): model is string => typeof model === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeComboInput(body: any) {
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  const models = Array.isArray(body?.models)
+    ? body.models.map((model: unknown) => typeof model === "string" ? model.trim() : "").filter(Boolean)
+    : [];
+
+  if (!name) return { error: "Combo name is required" };
+  if (!VALID_COMBO_NAME.test(name)) return { error: "Combo name may only contain letters, numbers, -, _, and ." };
+  if (models.length === 0) return { error: "Add at least one fallback model" };
+
+  return { name, models };
+}
+
+function serializeCombo(combo: { id: string; name: string; models: string; createdAt: Date; updatedAt: Date }) {
+  return { ...combo, models: parseComboModels(combo.models) };
+}
+
+function buildLocalModelCatalog() {
+  const providerByAlias = new Map<string, string>();
+
+  for (const provider of Object.values(FREE_PROVIDERS)) {
+    providerByAlias.set(provider.alias, provider.id);
+  }
+  for (const provider of Object.values(FREE_TIER_PROVIDERS)) {
+    providerByAlias.set(provider.alias, provider.id);
+  }
+  for (const provider of Object.values(OAUTH_PROVIDERS)) {
+    providerByAlias.set(provider.alias, provider.id);
+  }
+  for (const provider of Object.values(APIKEY_PROVIDERS)) {
+    providerByAlias.set(provider.alias, provider.id);
+  }
+
+  const models: Record<string, { provider: string; providerAlias: string; name?: string }> = {};
+
+  for (const [alias, entries] of Object.entries(PROVIDER_MODELS)) {
+    const providerId = providerByAlias.get(alias) || alias;
+    for (const entry of entries) {
+      if (!entry?.id) continue;
+      models[entry.id] = {
+        provider: providerId,
+        providerAlias: alias,
+        name: entry.name,
+      };
+    }
+  }
+
+  const data = Object.entries(models)
+    .map(([id, meta]) => ({
+      id,
+      model: id,
+      name: meta.name || id,
+      provider: meta.provider,
+      providerAlias: meta.providerAlias,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return { models, data };
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug?: string[] }> }) {
   const resolvedParams = await params;
@@ -69,7 +146,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
             name: profile.name,
             googleId: profile.id,
             apiKeys: {
-              create: { name: "Default Key", key: `tnb_sk_live_${Math.random().toString(36).substring(7)}`, prefix: "sk_live" }
+              create: { name: "Default Key", key: generateApiKey(), prefix: API_KEY_PREFIX }
             }
           }
         });
@@ -96,6 +173,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     const user = await getUser();
     if (user) return NextResponse.json({ user });
     return NextResponse.json({ user: null }, { status: 401 });
+  }
+
+  if (path === "/auth/user/combos") {
+    const user = await getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const combos = await prisma.modelCombo.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+    });
+    return NextResponse.json({ combos: combos.map(serializeCombo) });
   }
 
   if (path === "/auth/user/api-keys" || path === "/auth/user/keys") {
@@ -125,6 +212,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   if (path === "/models/availability") {
     const allProviderIds = [...Object.keys(FREE_PROVIDERS), ...Object.keys(FREE_TIER_PROVIDERS), ...Object.keys(OAUTH_PROVIDERS), ...Object.keys(APIKEY_PROVIDERS)];
     return NextResponse.json({ models: allProviderIds.map(id => ({ provider: id, model: "default-model", status: "available" })), unavailableCount: 0 });
+  }
+
+  if (path === "/models") {
+    const catalog = buildLocalModelCatalog();
+    return NextResponse.json(catalog);
   }
 
   if (path === "/models/alias") return NextResponse.json({ aliases: {} });
@@ -238,7 +330,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
         data: { 
           email, 
           name: email.split("@")[0],
-          apiKeys: { create: { name: "Default Key", key: `tnb_sk_live_${Math.random().toString(36).substring(7)}`, prefix: "sk_live" } } 
+          apiKeys: { create: { name: "Default Key", key: generateApiKey(), prefix: API_KEY_PREFIX } }
         }
       });
     }
@@ -258,7 +350,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     let user = await prisma.user.findUnique({ where: { email } });
     if (user) return NextResponse.json({ error: "Exists" }, { status: 400 });
     user = await prisma.user.create({
-      data: { email, name, apiKeys: { create: { name: "Default Key", key: `tnb_sk_live_${Math.random().toString(36).substring(7)}`, prefix: "sk_live" } } }
+      data: { email, name, apiKeys: { create: { name: "Default Key", key: generateApiKey(), prefix: API_KEY_PREFIX } } }
     });
     const res = NextResponse.json({ token: user.id, user });
     res.cookies.set("auth-token", user.id, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 7 * 24 * 60 * 60 });
@@ -269,9 +361,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     const user = await getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const newKey = await prisma.apiKey.create({
-      data: { userId: user.id, name: body.name || "Untitled Key", key: `tnb_sk_live_${Math.random().toString(36).substring(7)}`, prefix: "sk_live" }
+      data: { userId: user.id, name: body.name || "Untitled Key", key: generateApiKey(), prefix: API_KEY_PREFIX }
     });
     return NextResponse.json(newKey);
+  }
+
+  if (path === "/auth/user/combos") {
+    const user = await getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const input = normalizeComboInput(body);
+    if ("error" in input) return NextResponse.json({ error: input.error }, { status: 400 });
+
+    try {
+      const combo = await prisma.modelCombo.create({
+        data: { userId: user.id, name: input.name, models: JSON.stringify(input.models) },
+      });
+      return NextResponse.json({ combo: serializeCombo(combo) }, { status: 201 });
+    } catch {
+      return NextResponse.json({ error: "A combo with this name already exists" }, { status: 409 });
+    }
   }
 
   if (path === "/auth/user/providers") {
@@ -303,6 +411,31 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ slug
   const resolvedParams = await params;
   const path = "/" + (resolvedParams.slug?.join("/") || "");
   const body = await req.json().catch(() => ({}));
+
+  async function getUser() {
+    const token = req.cookies.get("auth-token")?.value;
+    return token ? prisma.user.findUnique({ where: { id: token } }) : null;
+  }
+
+  const comboMatch = path.match(/^\/auth\/user\/combos\/([^/]+)$/);
+  if (comboMatch) {
+    const user = await getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const input = normalizeComboInput(body);
+    if ("error" in input) return NextResponse.json({ error: input.error }, { status: 400 });
+    const existing = await prisma.modelCombo.findFirst({ where: { id: comboMatch[1], userId: user.id } });
+    if (!existing) return NextResponse.json({ error: "Combo not found" }, { status: 404 });
+
+    try {
+      const combo = await prisma.modelCombo.update({
+        where: { id: existing.id },
+        data: { name: input.name, models: JSON.stringify(input.models) },
+      });
+      return NextResponse.json({ combo: serializeCombo(combo) });
+    } catch {
+      return NextResponse.json({ error: "A combo with this name already exists" }, { status: 409 });
+    }
+  }
 
   if (path.match(/^\/auth\/user\/providers\/.+$/)) {
     const id = path.split("/")[4];
@@ -356,6 +489,20 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ s
   const resolvedParams = await params;
   const path = "/" + (resolvedParams.slug?.join("/") || "");
 
+  async function getUser() {
+    const token = req.cookies.get("auth-token")?.value;
+    return token ? prisma.user.findUnique({ where: { id: token } }) : null;
+  }
+
+  const comboMatch = path.match(/^\/auth\/user\/combos\/([^/]+)$/);
+  if (comboMatch) {
+    const user = await getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const deleted = await prisma.modelCombo.deleteMany({ where: { id: comboMatch[1], userId: user.id } });
+    if (deleted.count === 0) return NextResponse.json({ error: "Combo not found" }, { status: 404 });
+    return NextResponse.json({ success: true });
+  }
+
   if (path === "/router/log") {
     await prisma.routerLog.deleteMany();
     return NextResponse.json({ success: true });
@@ -373,7 +520,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ s
     return NextResponse.json({ success: true });
   }
 
-  async function getUser() {
+  async function getAdminUser() {
     const token = req.cookies.get("auth-token")?.value;
     if (!token) return null;
     const user = await prisma.user.findUnique({ where: { id: token } });
@@ -385,7 +532,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ s
   }
 
   if (path.startsWith("/admin/")) {
-    const adminUser = await getUser();
+    const adminUser = await getAdminUser();
     if (!adminUser || adminUser.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const keyMatch = path.match(/^\/admin\/users\/([^/]+)\/keys\/([^/]+)$/);

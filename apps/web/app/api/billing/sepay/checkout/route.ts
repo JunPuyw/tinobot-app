@@ -3,9 +3,9 @@ import { getSettings } from "@/lib/localDb";
 import {
   createMockPaymentOrder,
   expireOldMockOrders,
-  findBillingPackage,
   listMockPaymentOrders,
 } from "@/lib/mockBilling";
+import { getPricingPackageById } from "@/lib/pricingPackages";
 import { getPortalUser } from "@/lib/userAuth";
 
 const SEPAY_BANK_ID = process.env.SEPAY_BANK_ID || "Vietcombank";
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     let amountUSD: number;
 
     if (body.packageId) {
-      const pkg = findBillingPackage(body.packageId);
+      const pkg = await getPricingPackageById(body.packageId);
       if (!pkg) {
         return NextResponse.json({ error: "Package not found" }, { status: 404 });
       }

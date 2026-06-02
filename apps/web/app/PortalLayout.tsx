@@ -18,12 +18,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
 
   const navItems = [
-    { name: "Dashboard", href: "/usage",     icon: "dashboard" },
+    { name: "Dashboard", href: "/usage", icon: "dashboard" },
     { name: "Providers", href: "/providers", icon: "settings_input_component" },
-    { name: "Combos",    href: "/combos",    icon: "layers" },
-    { name: "Playground",href: "/playground",icon: "play_circle" },
-    { name: "Billing",   href: "/billing",   icon: "payments" },
-    { name: "Settings",  href: "/settings",  icon: "settings" },
+    { name: "Combos", href: "/combos", icon: "layers" },
+    { name: "Models", href: "/models", icon: "layers" },
+    { name: "Playground", href: "/playground", icon: "play_circle" },
+    { name: "Billing", href: "/billing", icon: "payments" },
+    { name: "Settings", href: "/settings", icon: "settings" },
     ...(user?.role === "admin" ? [{ name: "Admin CMS", href: "/admin", icon: "admin_panel_settings" }] : []),
   ];
 
@@ -38,10 +39,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       )}
 
       {/* Sidebar */}
-      <aside 
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-surface border-r border-border transform transition-[width,transform] duration-300 ease-in-out sm:translate-x-0 sm:static shrink-0 overflow-x-hidden ${
-          isCollapsed ? "w-20" : "w-64"
-        } ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-surface border-r border-border transform transition-[width,transform] duration-300 ease-in-out sm:translate-x-0 sm:static shrink-0 overflow-x-hidden ${isCollapsed ? "w-20" : "w-64"
+          } ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         {/* Floating Collapse Button for PC */}
         <button
@@ -78,8 +78,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   key={item.href}
                   href={item.href}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 overflow-hidden ${isActive
-                      ? "bg-primary/10 text-primary shadow-sm"
-                      : "text-text-muted hover:bg-surface-hover hover:text-text-main"
+                    ? "bg-primary/10 text-primary shadow-sm"
+                    : "text-text-muted hover:bg-surface-hover hover:text-text-main"
                     } ${isCollapsed ? "justify-center px-0" : ""}`}
                   title={isCollapsed ? item.name : undefined}
                 >

@@ -58,12 +58,6 @@ const Input = ({ className, label, error, ...props }: any) => (
   </div>
 );
 
-const Toggle = ({ checked, onChange, title }: any) => (
-  <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} title={title} className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${checked ? "bg-primary" : "bg-border/50"}`}>
-    <span className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${checked ? "translate-x-4" : "translate-x-0"}`} />
-  </button>
-);
-
 const Modal = ({ isOpen, onClose, title, children }: any) => {
   if (!isOpen) return null;
   return (
@@ -81,18 +75,6 @@ const Modal = ({ isOpen, onClose, title, children }: any) => {
   );
 };
 
-const ModelSelectModal = ({ isOpen, onClose, onSelect, title }: any) => isOpen ? (
-  <Modal isOpen={isOpen} onClose={onClose} title={title}>
-    <div className="p-8 text-center flex flex-col items-center gap-4">
-      <span className="material-symbols-outlined text-[48px] text-text-muted/30">search</span>
-      <p className="text-sm text-text-muted">Search and select a model from your active providers.</p>
-      <div className="w-full bg-surface/50 border border-border rounded-xl p-4 text-xs text-left italic">
-        (Component logic simplified for refactor)
-      </div>
-      <Button variant="secondary" onClick={onClose} fullWidth>Close</Button>
-    </div>
-  </Modal>
-) : null;
 const useCopyToClipboard = () => {
   const [copied, setCopied] = useState<string | null>(null);
   const copy = (text: string, id: string) => {
@@ -104,44 +86,94 @@ const useCopyToClipboard = () => {
   return { copied, copy };
 };
 
-const useWorkspaceSWR = <T,>(url: string | null) => {
-  const { activeWorkspace } = useWorkspace();
-  const fetcher = (u: string) => fetch(u, { headers: { "X-Workspace-Id": activeWorkspace?.id || "" } }).then(r => r.json());
-  const { data, error, isLoading, mutate } = useSWR<T>(url && activeWorkspace ? url : null, fetcher);
+const fetcher = (url: string) => fetch(url).then(async (response) => {
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Request failed");
+  return data;
+});
+
+const useApiSWR = <T,>(url: string | null) => {
+  const { data, error, isLoading, mutate } = useSWR<T>(url, fetcher);
   return { data, error, isLoading, mutate };
 };
 
 const cn = (...classes: (string | boolean | undefined | null)[]) => classes.filter(Boolean).join(" ");
 
-import { useWorkspace } from "@/context/WorkspaceContext";
 import useSWR from "swr";
 
+function ModelSelectModal({ isOpen, onClose, onSelect, selectedModels = [], title }: any) {
+  const [query, setQuery] = useState("");
+  const { data, isLoading } = useApiSWR<{ data?: any[] }>("/api/models");
+  const models = (data?.data || [])
+    .map((model: any) => ({
+      ...model,
+      value: model.model.startsWith(`${model.provider}/`) ? model.model : `${model.provider}/${model.model}`,
+    }))
+    .filter((model: any) => {
+      const normalizedQuery = query.trim().toLowerCase();
+      return !normalizedQuery || `${model.name} ${model.value} ${model.provider}`.toLowerCase().includes(normalizedQuery);
+    });
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={title}>
+      <div className="flex flex-col gap-4">
+        <Input
+          value={query}
+          onChange={(event: any) => setQuery(event.target.value)}
+          placeholder="Search models..."
+        />
+        <div className="max-h-80 overflow-y-auto flex flex-col gap-2">
+          {isLoading ? (
+            <p className="py-8 text-center text-sm text-text-muted">Loading models...</p>
+          ) : models.length === 0 ? (
+            <p className="py-8 text-center text-sm text-text-muted">No matching models found.</p>
+          ) : models.map((model: any) => {
+            const selected = selectedModels.includes(model.value);
+            return (
+              <button
+                key={model.value}
+                type="button"
+                disabled={selected}
+                onClick={() => {
+                  onSelect(model);
+                  onClose();
+                }}
+                className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2 text-left hover:border-primary/50 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-text-main">{model.name}</span>
+                  <code className="block truncate text-xs text-text-muted">{model.value}</code>
+                </span>
+                <Badge variant={selected ? "success" : "default"}>{selected ? "Added" : model.provider}</Badge>
+              </button>
+            );
+          })}
+        </div>
+        <Button variant="secondary" onClick={onClose} fullWidth>Close</Button>
+      </div>
+    </Modal>
+  );
+}
+
 // Validate combo name: only a-z, A-Z, 0-9, -, _, .
-const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
+const VALID_NAME_REGEX = /^[a-zA-Z0-9_.-]+$/;
 
 export default function UserCombosPage() {
-  const { activeWorkspace } = useWorkspace();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCombo, setEditingCombo] = useState<any>(null);
   const { copied, copy } = useCopyToClipboard();
-  const [Combos, setCombos] = useState();
   const { data: combosData, isLoading: combosLoading, mutate: mutateCombos } =
-    useWorkspaceSWR<{ combos: any[] }>("/api/auth/user/combos");
-  const { data: providersData, isLoading: providersLoading } =
-    useWorkspaceSWR<{ connections: any[] }>("/api/auth/user/providers");
+    useApiSWR<{ combos: any[] }>("/api/auth/user/combos");
 
   const combos = combosData?.combos || [];
-  const activeProviders = providersData?.connections || [];
-  const loading = combosLoading || providersLoading;
+  const loading = combosLoading;
 
   const handleCreate = async (data: any) => {
-    if (!activeWorkspace) return;
     try {
       const res = await fetch("/api/auth/user/combos", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "X-Workspace-Id": activeWorkspace.id
+          "Content-Type": "application/json"
         },
         body: JSON.stringify(data),
       });
@@ -158,13 +190,11 @@ export default function UserCombosPage() {
   };
 
   const handleUpdate = async (id: string, data: any) => {
-    if (!activeWorkspace) return;
     try {
       const res = await fetch(`/api/auth/user/combos/${id}`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
-          "X-Workspace-Id": activeWorkspace.id
+          "Content-Type": "application/json"
         },
         body: JSON.stringify(data),
       });
@@ -181,12 +211,10 @@ export default function UserCombosPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!activeWorkspace) return;
     if (!confirm("Delete this combo?")) return;
     try {
       const res = await fetch(`/api/auth/user/combos/${id}`, {
-        method: "DELETE",
-        headers: { "X-Workspace-Id": activeWorkspace.id }
+        method: "DELETE"
       });
       if (res.ok) {
         mutateCombos({ combos: combos.filter((c: any) => c.id !== id) }, false);
@@ -203,7 +231,7 @@ export default function UserCombosPage() {
         <div>
           <h1 className="text-3xl font-bold text-text-main tracking-tight">Model Combos</h1>
           <p className="text-sm text-text-muted mt-2">
-            Managing fallback chains for <b>{activeWorkspace?.name}</b>
+            Manage reusable fallback chains for your API models.
           </p>
         </div>
         <Button variant="primary" icon="add" onClick={() => setShowCreateModal(true)}>
@@ -223,7 +251,7 @@ export default function UserCombosPage() {
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 text-primary mb-6 shadow-inner">
               <span className="material-symbols-outlined text-[40px]">layers</span>
             </div>
-            <p className="text-xl font-bold text-text-main mb-2">No combos in this workspace</p>
+            <p className="text-xl font-bold text-text-main mb-2">No combos yet</p>
             <p className="text-sm text-text-muted mb-8 max-w-sm mx-auto">
               Combine multiple models into a single virtual endpoint with automatic fallback.
             </p>
@@ -253,8 +281,6 @@ export default function UserCombosPage() {
         combo={null}
         onClose={() => setShowCreateModal(false)}
         onSave={handleCreate}
-        activeProviders={activeProviders}
-        workspaceName={activeWorkspace?.name}
       />
 
       <ComboFormModal
@@ -262,8 +288,6 @@ export default function UserCombosPage() {
         combo={editingCombo}
         onClose={() => setEditingCombo(null)}
         onSave={(data: any) => editingCombo && handleUpdate(editingCombo.id, data)}
-        activeProviders={activeProviders}
-        workspaceName={activeWorkspace?.name}
       />
     </div>
   );
@@ -389,26 +413,21 @@ function ModelItem({ index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown
   );
 }
 
-function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, workspaceName }: any) {
-  const { activeWorkspace } = useWorkspace();
+function ComboFormModal({ isOpen, combo, onClose, onSave }: any) {
   const [name, setName] = useState(combo?.name || "");
   const [models, setModels] = useState(combo?.models || []);
   const [showModelSelect, setShowModelSelect] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState("");
-  const [modelAliases, setModelAliases] = useState({});
 
   useEffect(() => {
-    if (isOpen && activeWorkspace) {
+    if (isOpen) {
       setTimeout(() => {
         setName(combo?.name || "");
         setModels(combo?.models || []);
       }, 0);
-      fetch("/api/models/alias", {
-        headers: { "X-Workspace-Id": activeWorkspace.id }
-      }).then(r => r.json()).then(d => setModelAliases(d.aliases || {}));
     }
-  }, [isOpen, combo, activeWorkspace]);
+  }, [isOpen, combo]);
 
   const validateName = (value: string) => {
     if (!value.trim()) { setNameError("Name is required"); return false; }
@@ -468,9 +487,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, works
         isOpen={showModelSelect}
         onClose={() => setShowModelSelect(false)}
         onSelect={(m: any) => { if (!models.includes(m.value)) setModels([...models, m.value]); }}
-        selectedModel={null}
-        activeProviders={activeProviders}
-        modelAliases={modelAliases}
+        selectedModels={models}
         title="Add Model to Fallback"
       />
     </>

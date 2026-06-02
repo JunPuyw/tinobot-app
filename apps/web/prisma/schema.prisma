@@ -3,7 +3,6 @@
 
 generator client {
   provider   = "prisma-client-js"
-  output     = "../../node_modules/@prisma/client"
   engineType = "library"
 }
 
@@ -24,6 +23,21 @@ model User {
   
   apiKeys     ApiKey[]
   connections ProviderConnection[]
+  combos      ModelCombo[]
+}
+
+model PricingPackage {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  priceUSD    Float
+  credits     Float
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
 }
 
 model ApiKey {
@@ -55,6 +69,19 @@ model ProviderConnection {
   userId       String
   
   proxyPoolId  String?
+}
+
+model ModelCombo {
+  id        String   @id @default(cuid())
+  name      String
+  models    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+
+  @@unique([userId, name])
 }
 
 model ProviderNode {

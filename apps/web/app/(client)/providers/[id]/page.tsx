@@ -1751,7 +1751,9 @@ function ChatPreview({ activeWorkspace, providerStorageAlias, models, kiloFreeMo
           "X-Workspace-Id": activeWorkspace?.id || ""
         },
         body: JSON.stringify({
-          model: `${providerStorageAlias}/${selectedModel}`,
+          model: selectedModel,
+          provider: providerStorageAlias,
+          modelSource: "platform",
           messages: [...messages, userMessage],
           stream: false
         })

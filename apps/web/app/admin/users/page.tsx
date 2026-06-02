@@ -151,7 +151,7 @@ function UserDrawer({
                       <div key={k.id} className="flex items-center justify-between gap-2 bg-bg rounded-xl px-4 py-3 border border-border">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-text-main truncate">{k.name}</p>
-                          <p className="text-[11px] text-text-muted font-mono">{k.prefix}_••••••••</p>
+                          <p className="text-[11px] text-text-muted font-mono">{k.prefix}-••••••••</p>
                         </div>
                         <button
                           onClick={() => revokeKey(k.id)}

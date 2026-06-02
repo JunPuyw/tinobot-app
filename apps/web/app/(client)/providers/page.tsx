@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 const Card = ({ children, className, padding }: any) => (
-  <div className={`rounded-2xl border bg-card shadow-sm ${className || "border-border"} ${padding === "xs" ? "p-3" : padding === "none" ? "" : "p-6"}`}>
+  <div
+    className={`rounded-2xl border bg-card shadow-sm ${className || "border-border"} ${padding === "xs" ? "p-3" : padding === "none" ? "" : "p-6"}`}
+  >
     {children}
   </div>
 );
@@ -16,7 +18,13 @@ const CardSkeleton = () => (
   </div>
 );
 
-const Badge = ({ children, className, variant = "primary", size = "md", dot }: any) => {
+const Badge = ({
+  children,
+  className,
+  variant = "primary",
+  size = "md",
+  dot,
+}: any) => {
   const variants = {
     primary: "bg-primary/10 text-primary",
     success: "bg-emerald-500/10 text-emerald-500",
@@ -24,15 +32,32 @@ const Badge = ({ children, className, variant = "primary", size = "md", dot }: a
     default: "bg-surface text-text-muted",
   };
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${variants[variant as keyof typeof variants] || variants.primary} ${className || ""}`}>
-      {dot && <span className={`mr-1.5 size-1.5 rounded-full ${variant === "success" ? "bg-emerald-500" : "bg-red-500"}`}></span>}
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${variants[variant as keyof typeof variants] || variants.primary} ${className || ""}`}
+    >
+      {dot && (
+        <span
+          className={`mr-1.5 size-1.5 rounded-full ${variant === "success" ? "bg-emerald-500" : "bg-red-500"}`}
+        ></span>
+      )}
       {children}
     </span>
   );
 };
 
-const Button = ({ children, className, variant = "primary", size = "md", loading, fullWidth, disabled, icon, ...props }: any) => {
-  const baseStyle = "inline-flex items-center justify-center rounded-xl text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+const Button = ({
+  children,
+  className,
+  variant = "primary",
+  size = "md",
+  loading,
+  fullWidth,
+  disabled,
+  icon,
+  ...props
+}: any) => {
+  const baseStyle =
+    "inline-flex items-center justify-center rounded-xl text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
   const variants = {
     primary: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
     secondary: "border border-border bg-transparent shadow-sm hover:bg-surface",
@@ -43,9 +68,21 @@ const Button = ({ children, className, variant = "primary", size = "md", loading
     lg: "h-11 px-8 py-3",
   };
   return (
-    <button className={`${baseStyle} ${variants[variant as keyof typeof variants] || variants.primary} ${sizes[size as keyof typeof sizes] || sizes.md} ${fullWidth ? "w-full" : ""} ${className || ""}`} disabled={loading || disabled} {...props}>
-      {loading && <span className="material-symbols-outlined animate-spin mr-2 text-[16px]">progress_activity</span>}
-      {!loading && icon && <span className="material-symbols-outlined mr-1.5 text-[16px]">{icon}</span>}
+    <button
+      className={`${baseStyle} ${variants[variant as keyof typeof variants] || variants.primary} ${sizes[size as keyof typeof sizes] || sizes.md} ${fullWidth ? "w-full" : ""} ${className || ""}`}
+      disabled={loading || disabled}
+      {...props}
+    >
+      {loading && (
+        <span className="material-symbols-outlined animate-spin mr-2 text-[16px]">
+          progress_activity
+        </span>
+      )}
+      {!loading && icon && (
+        <span className="material-symbols-outlined mr-1.5 text-[16px]">
+          {icon}
+        </span>
+      )}
       {children}
     </button>
   );
@@ -53,24 +90,47 @@ const Button = ({ children, className, variant = "primary", size = "md", loading
 
 const Input = ({ className, label, error, ...props }: any) => (
   <div className="flex flex-col gap-1.5 w-full">
-    {label && <label className="text-xs font-semibold text-text-muted">{label}</label>}
-    <input className={`flex h-10 w-full rounded-xl border bg-transparent px-3 py-2 text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed ${error ? "border-red-500" : "border-border"} ${className || ""}`} {...props} />
+    {label && (
+      <label className="text-xs font-semibold text-text-muted">{label}</label>
+    )}
+    <input
+      className={`flex h-10 w-full rounded-xl border bg-transparent px-3 py-2 text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed ${error ? "border-red-500" : "border-border"} ${className || ""}`}
+      {...props}
+    />
     {error && <span className="text-[10px] text-red-500">{error}</span>}
   </div>
 );
 
 const Select = ({ className, label, options, ...props }: any) => (
   <div className="flex flex-col gap-1.5 w-full">
-    {label && <label className="text-xs font-semibold text-text-muted">{label}</label>}
-    <select className={`flex h-10 w-full rounded-xl border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed ${className || ""}`} {...props}>
-      {options?.map((opt: any) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+    {label && (
+      <label className="text-xs font-semibold text-text-muted">{label}</label>
+    )}
+    <select
+      className={`flex h-10 w-full rounded-xl border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed ${className || ""}`}
+      {...props}
+    >
+      {options?.map((opt: any) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
     </select>
   </div>
 );
 
 const Toggle = ({ checked, onChange, title }: any) => (
-  <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} title={title} className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${checked ? "bg-primary" : "bg-border/50"}`}>
-    <span className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${checked ? "translate-x-4" : "translate-x-0"}`} />
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    onClick={() => onChange(!checked)}
+    title={title}
+    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${checked ? "bg-primary" : "bg-border/50"}`}
+  >
+    <span
+      className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${checked ? "translate-x-4" : "translate-x-0"}`}
+    />
   </button>
 );
 
@@ -78,10 +138,15 @@ const Modal = ({ isOpen, onClose, title, children, size }: any) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in p-4">
-      <div className={`bg-card rounded-2xl w-full ${size === "full" ? "max-w-5xl h-[90vh]" : "max-w-lg"} shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 flex flex-col`}>
+      <div
+        className={`bg-card rounded-2xl w-full ${size === "full" ? "max-w-5xl h-[90vh]" : "max-w-lg"} shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 flex flex-col`}
+      >
         <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
           <h2 className="text-lg font-bold">{title}</h2>
-          <button onClick={onClose} className="p-1 rounded-md hover:bg-surface text-text-muted transition-colors">
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md hover:bg-surface text-text-muted transition-colors"
+          >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
@@ -91,10 +156,34 @@ const Modal = ({ isOpen, onClose, title, children, size }: any) => {
   );
 };
 
-const ProviderIcon = ({ src, alt, size, className, fallbackText, fallbackColor }: any) => {
+const ProviderIcon = ({
+  src,
+  alt,
+  size,
+  className,
+  fallbackText,
+  fallbackColor,
+}: any) => {
   const [imgError, setImgError] = useState(false);
-  if (imgError) return <div className={`flex items-center justify-center font-bold text-xs ${className}`} style={{ width: size, height: size, color: fallbackColor }}>{fallbackText}</div>;
-  return <img src={src} alt={alt} width={size} height={size} className={className} onError={() => setImgError(true)} />;
+  if (imgError)
+    return (
+      <div
+        className={`flex items-center justify-center font-bold text-xs ${className}`}
+        style={{ width: size, height: size, color: fallbackColor }}
+      >
+        {fallbackText}
+      </div>
+    );
+  return (
+    <img
+      src={src}
+      alt={alt}
+      width={size}
+      height={size}
+      className={className}
+      onError={() => setImgError(true)}
+    />
+  );
 };
 const OPENAI_COMPATIBLE_PREFIX = "openai-compatible";
 const ANTHROPIC_COMPATIBLE_PREFIX = "anthropic-compatible";
@@ -150,7 +239,11 @@ type ProviderStore = {
   setNodes: (fn: any) => void;
 };
 
-function getStatusDisplay(connected: number, error: number, errorCode: string | null) {
+function getStatusDisplay(
+  connected: number,
+  error: number,
+  errorCode: string | null,
+) {
   const parts = [];
   if (connected > 0) {
     parts.push(
@@ -222,23 +315,37 @@ import useProviderStore from "../../../store/providerStore";
 
 export default function ProvidersPage() {
   const { activeWorkspace } = useWorkspace();
-  const { connections, nodes: providerNodes, loading, refreshing, fetchIfStale, setConnections, setNodes, error } = useProviderStore();
+  const {
+    connections,
+    nodes: providerNodes,
+    loading,
+    refreshing,
+    fetchIfStale,
+    setConnections,
+    setNodes,
+    error,
+  } = useProviderStore();
 
   const [providerConfigs, setProviderConfigs] = useState<any>({
     OAUTH_PROVIDERS: {},
     APIKEY_PROVIDERS: {},
     FREE_PROVIDERS: {},
-    FREE_TIER_PROVIDERS: {}
+    FREE_TIER_PROVIDERS: {},
   });
 
   useEffect(() => {
-    fetch('/api/providers')
-      .then(res => res.json())
-      .then(data => setProviderConfigs(data))
-      .catch(err => console.error("Failed to load providers config", err));
+    fetch("/api/providers")
+      .then((res) => res.json())
+      .then((data) => setProviderConfigs(data))
+      .catch((err) => console.error("Failed to load providers config", err));
   }, []);
 
-  const { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS } = providerConfigs;
+  const {
+    OAUTH_PROVIDERS,
+    APIKEY_PROVIDERS,
+    FREE_PROVIDERS,
+    FREE_TIER_PROVIDERS,
+  } = providerConfigs;
 
   const [showAddCompatibleModal, setShowAddCompatibleModal] = useState(false);
   const [showAddAnthropicCompatibleModal, setShowAddAnthropicCompatibleModal] =
@@ -306,7 +413,11 @@ export default function ProvidersPage() {
   };
 
   // Toggle all connections for a provider on/off
-  const handleToggleProvider = async (providerId: string, authType: string, newActive: boolean) => {
+  const handleToggleProvider = async (
+    providerId: string,
+    authType: string,
+    newActive: boolean,
+  ) => {
     const providerConns = connections.filter(
       (c: any) => c.provider === providerId && c.authType === authType,
     );
@@ -323,7 +434,7 @@ export default function ProvidersPage() {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            "X-Workspace-Id": activeWorkspace?.id || ""
+            "X-Workspace-Id": activeWorkspace?.id || "",
           },
           body: JSON.stringify({ isActive: newActive }),
         }),
@@ -331,7 +442,10 @@ export default function ProvidersPage() {
     );
   };
 
-  const handleBatchTest = async (mode: string, providerId: string | null = null) => {
+  const handleBatchTest = async (
+    mode: string,
+    providerId: string | null = null,
+  ) => {
     if (testingMode) return;
     setTestingMode(mode === "provider" ? providerId : mode);
     setTestResults(null);
@@ -340,7 +454,7 @@ export default function ProvidersPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Workspace-Id": activeWorkspace?.id || ""
+          "X-Workspace-Id": activeWorkspace?.id || "",
         },
         body: JSON.stringify({ mode, providerId }),
       });
@@ -401,11 +515,13 @@ export default function ProvidersPage() {
       <div className="flex flex-col gap-4 relative">
         {refreshing && (
           <div className="absolute top-0 right-0 flex items-center gap-2 text-[10px] font-bold text-primary animate-pulse bg-primary/5 px-2 py-0.5 rounded-full">
-            <span className="material-symbols-outlined text-[12px] animate-spin">sync</span>
+            <span className="material-symbols-outlined text-[12px] animate-spin">
+              sync
+            </span>
             SYNCING
           </div>
         )}
-        <div className="flex items-center justify-between">
+        {/* <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold flex items-center gap-2">
             OAuth Providers
           </h2>
@@ -441,7 +557,7 @@ export default function ProvidersPage() {
               onToggle={(active: boolean) => handleToggleProvider(key, "oauth", active)}
             />
           ))}
-        </div>
+        </div> */}
       </div>
 
       {/* Free & Free Tier Providers */}
@@ -453,10 +569,11 @@ export default function ProvidersPage() {
           <button
             onClick={() => handleBatchTest("free")}
             disabled={!!testingMode}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${testingMode === "free"
-              ? "bg-primary/20 border-primary/40 text-primary animate-pulse"
-              : "bg-bg border-border text-text-muted hover:text-text-main hover:border-primary/40"
-              }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              testingMode === "free"
+                ? "bg-primary/20 border-primary/40 text-primary animate-pulse"
+                : "bg-bg border-border text-text-muted hover:text-text-main hover:border-primary/40"
+            }`}
             title="Test all Free connections"
             aria-label="Test all Free provider connections"
           >
@@ -476,7 +593,9 @@ export default function ProvidersPage() {
               provider={info}
               stats={getProviderStats(key, "apikey")}
               authType="free"
-              onToggle={(active: boolean) => handleToggleProvider(key, "apikey", active)}
+              onToggle={(active: boolean) =>
+                handleToggleProvider(key, "apikey", active)
+              }
             />
           ))}
           {Object.entries(FREE_TIER_PROVIDERS).map(([key, info]) => (
@@ -486,7 +605,9 @@ export default function ProvidersPage() {
               provider={info}
               stats={getProviderStats(key, "apikey")}
               authType="apikey"
-              onToggle={(active: boolean) => handleToggleProvider(key, "apikey", active)}
+              onToggle={(active: boolean) =>
+                handleToggleProvider(key, "apikey", active)
+              }
             />
           ))}
         </div>
@@ -501,10 +622,11 @@ export default function ProvidersPage() {
           <button
             onClick={() => handleBatchTest("apikey")}
             disabled={!!testingMode}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${testingMode === "apikey"
-              ? "bg-primary/20 border-primary/40 text-primary animate-pulse"
-              : "bg-bg border-border text-text-muted hover:text-text-main hover:border-primary/40"
-              }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              testingMode === "apikey"
+                ? "bg-primary/20 border-primary/40 text-primary animate-pulse"
+                : "bg-bg border-border text-text-muted hover:text-text-main hover:border-primary/40"
+            }`}
             title="Test all API Key connections"
             aria-label="Test all API Key connections"
           >
@@ -524,7 +646,9 @@ export default function ProvidersPage() {
               provider={info}
               stats={getProviderStats(key, "apikey")}
               authType="apikey"
-              onToggle={(active: boolean) => handleToggleProvider(key, "apikey", active)}
+              onToggle={(active: boolean) =>
+                handleToggleProvider(key, "apikey", active)
+              }
             />
           ))}
         </div>
@@ -572,7 +696,7 @@ export default function ProvidersPage() {
           </div>
         </div>
         {compatibleProviders.length === 0 &&
-          anthropicCompatibleProviders.length === 0 ? (
+        anthropicCompatibleProviders.length === 0 ? (
           <div className="text-center py-8 border border-dashed border-border rounded-xl">
             <span className="material-symbols-outlined text-[32px] text-text-muted mb-2">
               extension
@@ -635,7 +759,13 @@ export default function ProvidersPage() {
   );
 }
 
-function ProviderCard({ providerId, provider, stats, authType, onToggle }: any) {
+function ProviderCard({
+  providerId,
+  provider,
+  stats,
+  authType,
+  onToggle,
+}: any) {
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
 
   const dotColors = {
@@ -712,7 +842,7 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }: any) 
                 <Toggle
                   size="sm"
                   checked={!allDisabled}
-                  onChange={() => { }}
+                  onChange={() => {}}
                   title={allDisabled ? "Enable provider" : "Disable provider"}
                 />
               </div>
@@ -850,7 +980,7 @@ function ApiKeyProviderCard({
                 <Toggle
                   size="sm"
                   checked={!allDisabled}
-                  onChange={() => { }}
+                  onChange={() => {}}
                   title={allDisabled ? "Enable provider" : "Disable provider"}
                 />
               </div>
@@ -996,14 +1126,18 @@ function AddOpenAICompatibleModal({ isOpen, onClose, onCreated }: any) {
         <Input
           label="Name"
           value={formData.name}
-          onChange={(e: any) => setFormData({ ...formData, name: e.target.value })}
+          onChange={(e: any) =>
+            setFormData({ ...formData, name: e.target.value })
+          }
           placeholder="OpenAI Compatible (Prod)"
           hint="Required. A friendly label for this node."
         />
         <Input
           label="Prefix"
           value={formData.prefix}
-          onChange={(e: any) => setFormData({ ...formData, prefix: e.target.value })}
+          onChange={(e: any) =>
+            setFormData({ ...formData, prefix: e.target.value })
+          }
           placeholder="oc-prod"
           hint="Required. Used as the provider prefix for model IDs."
         />
@@ -1185,14 +1319,18 @@ function AddAnthropicCompatibleModal({ isOpen, onClose, onCreated }: any) {
         <Input
           label="Name"
           value={formData.name}
-          onChange={(e: any) => setFormData({ ...formData, name: e.target.value })}
+          onChange={(e: any) =>
+            setFormData({ ...formData, name: e.target.value })
+          }
           placeholder="Anthropic Compatible (Prod)"
           hint="Required. A friendly label for this node."
         />
         <Input
           label="Prefix"
           value={formData.prefix}
-          onChange={(e: any) => setFormData({ ...formData, prefix: e.target.value })}
+          onChange={(e: any) =>
+            setFormData({ ...formData, prefix: e.target.value })
+          }
           placeholder="ac-prod"
           hint="Required. Used as the provider prefix for model IDs."
         />
@@ -1270,14 +1408,14 @@ function ProviderTestResultsView({ results }: any) {
 
   const { summary, mode } = results;
   const items = results.results || [];
-    const modeMap: any = {
-      oauth: "OAuth",
-      free: "Free",
-      apikey: "API Key",
-      provider: "Provider",
-      all: "All",
-    };
-    const modeLabel = modeMap[mode] || mode;
+  const modeMap: any = {
+    oauth: "OAuth",
+    free: "Free",
+    apikey: "API Key",
+    provider: "Provider",
+    all: "All",
+  };
+  const modeLabel = modeMap[mode] || mode;
 
   return (
     <div className="flex flex-col gap-3">
@@ -1317,10 +1455,11 @@ function ProviderTestResultsView({ results }: any) {
             </span>
           )}
           <span
-            className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${r.valid
-              ? "bg-emerald-500/15 text-emerald-400"
-              : "bg-red-500/15 text-red-400"
-              }`}
+            className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+              r.valid
+                ? "bg-emerald-500/15 text-emerald-400"
+                : "bg-red-500/15 text-red-400"
+            }`}
           >
             {r.valid ? "OK" : r.diagnosis?.type || "ERROR"}
           </span>

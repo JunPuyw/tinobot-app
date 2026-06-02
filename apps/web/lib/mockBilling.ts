@@ -1,26 +1,19 @@
-type PricingPackage = {
-  id: string;
-  name: string;
-  description: string;
-  priceUSD: number;
-  credits: number;
-  isActive: boolean;
-};
-
 export type MockPaymentOrder = {
   id: string;
   workspaceId: string;
   amountUSD: number;
-  amountVND: number;
-  provider: "sepay";
+  amountVND?: number;
+  provider: "sepay" | "polar";
   status: "pending" | "completed" | "expired";
-  transferContent: string;
-  qrUrl: string;
-  bankId: string;
-  accountNo: string;
-  accountName: string;
-  expiresAt: string;
+  transferContent?: string;
+  qrUrl?: string;
+  bankId?: string;
+  accountNo?: string;
+  accountName?: string;
+  expiresAt?: string;
+  externalId?: string;
   createdAt: string;
+  completedAt?: string;
   creditsEarned?: number | null;
 };
 
@@ -28,55 +21,18 @@ declare global {
   // eslint-disable-next-line no-var
   var __tinoMockBilling:
     | {
-        packages: PricingPackage[];
         orders: MockPaymentOrder[];
       }
     | undefined;
 }
 
-const defaultPackages: PricingPackage[] = [
-  {
-    id: "starter",
-    name: "Starter Pack",
-    description: "Phu hop de nap thu\nTop-up nhanh cho workspace nho",
-    priceUSD: 5,
-    credits: 5,
-    isActive: true,
-  },
-  {
-    id: "growth",
-    name: "Growth Pack",
-    description: "Can bang gia va credits\nHop cho nhu cau su dung hang ngay",
-    priceUSD: 10,
-    credits: 11,
-    isActive: true,
-  },
-  {
-    id: "pro",
-    name: "Pro Pack",
-    description: "Gia tot hon cho top-up lon\nUu tien cho team dang tang truong",
-    priceUSD: 25,
-    credits: 28,
-    isActive: true,
-  },
-];
-
 function getStore() {
   if (!global.__tinoMockBilling) {
     global.__tinoMockBilling = {
-      packages: defaultPackages,
       orders: [],
     };
   }
   return global.__tinoMockBilling;
-}
-
-export function listBillingPackages() {
-  return getStore().packages;
-}
-
-export function findBillingPackage(packageId: string) {
-  return getStore().packages.find((pkg) => pkg.id === packageId) ?? null;
 }
 
 export function createMockPaymentOrder(
@@ -101,12 +57,41 @@ export function getMockPaymentOrder(orderId: string) {
   return getStore().orders.find((order) => order.id === orderId) ?? null;
 }
 
+export function findMockPaymentOrderByTransferContent(transferContent: string) {
+  return (
+    getStore().orders.find(
+      (order) =>
+        order.transferContent?.toLowerCase() === transferContent.toLowerCase(),
+    ) ?? null
+  );
+}
+
+export function findMockPaymentOrderByExternalId(externalId: string) {
+  return (
+    getStore().orders.find((order) => order.externalId === externalId) ?? null
+  );
+}
+
+export function markMockPaymentOrderCompleted(
+  orderId: string,
+  updates: Pick<MockPaymentOrder, "externalId" | "creditsEarned" | "completedAt">,
+) {
+  const order = getStore().orders.find((entry) => entry.id === orderId);
+  if (!order) return null;
+  order.status = "completed";
+  order.externalId = updates.externalId;
+  order.creditsEarned = updates.creditsEarned;
+  order.completedAt = updates.completedAt;
+  return order;
+}
+
 export function expireOldMockOrders(workspaceId: string, now = new Date()) {
   for (const order of getStore().orders) {
     if (
       order.workspaceId === workspaceId &&
       order.provider === "sepay" &&
       order.status === "pending" &&
+      order.expiresAt &&
       new Date(order.expiresAt) < now
     ) {
       order.status = "expired";

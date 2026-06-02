@@ -152,7 +152,7 @@ export default function ApiKeyManager() {
                   keys.map((key: any) => (
                     <tr key={key.id} className="hover:bg-primary/[0.02] transition-colors">
                       <td className="py-4 px-2 font-medium">{key.name}</td>
-                      <td className="py-4 px-2 font-mono text-xs opacity-60">tnb_{key.prefix}...</td>
+                      <td className="py-4 px-2 font-mono text-xs opacity-60">{key.prefix}-...</td>
                       <td className="py-4 px-2 text-text-muted text-xs">{new Date(key.createdAt).toLocaleDateString()}</td>
                       <td className="py-4 px-2 text-right">
                         <Button 

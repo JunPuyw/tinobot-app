@@ -1,14 +1,9 @@
 import pino from 'pino';
 
+const isDev = process.env.NODE_ENV !== 'production';
+
 const logger = pino({
-  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-  transport:
-    process.env.NODE_ENV !== 'production'
-      ? {
-          target: 'pino-pretty',
-          options: { colorize: true, translateTime: true }
-        }
-      : undefined,
+  level: isDev ? 'debug' : 'info',
 });
 
 export default logger;

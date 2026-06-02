@@ -11,13 +11,90 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import session from "express-session";
 import cookieParser from "cookie-parser";
 import prisma from "./lib/prisma";
+import { randomBytes } from "node:crypto";
+import { fetchPlatformUpstream, PlatformUpstreamConfigurationError } from "./lib/platformUpstreams";
 
 dotenv.config();
+
+const API_KEY_PREFIX = "sk-tinobot";
+const VALID_COMBO_NAME = /^[a-zA-Z0-9_.-]+$/;
+
+function generateApiKey() {
+  return `${API_KEY_PREFIX}-${randomBytes(24).toString("hex")}`;
+}
+
+function parseComboModels(models: string) {
+  try {
+    const parsed = JSON.parse(models);
+    return Array.isArray(parsed) ? parsed.filter((model): model is string => typeof model === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeComboInput(body: any) {
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  const models = Array.isArray(body?.models)
+    ? body.models.map((model: unknown) => typeof model === "string" ? model.trim() : "").filter(Boolean)
+    : [];
+
+  if (!name) return { error: "Combo name is required" };
+  if (!VALID_COMBO_NAME.test(name)) return { error: "Combo name may only contain letters, numbers, -, _, and ." };
+  if (models.length === 0) return { error: "Add at least one fallback model" };
+
+  return { name, models };
+}
+
+function serializeCombo(combo: { id: string; name: string; models: string; createdAt: Date; updatedAt: Date }) {
+  return { ...combo, models: parseComboModels(combo.models) };
+}
+
+async function getRequestUser(req: Request) {
+  return (req.user || (req.cookies["auth-token"] ? await prisma.user.findUnique({ where: { id: req.cookies["auth-token"] } }) : null)) as any;
+}
+
+function normalizeRequestedModel(body: any) {
+  const rawModel = typeof body?.model === "string" ? body.model.trim() : "";
+  const modelSource =
+    typeof body?.modelSource === "string"
+      ? body.modelSource.trim().toLowerCase()
+      : "auto";
+  const explicitProvider =
+    typeof body?.provider === "string" ? body.provider.trim() : "";
+  const inferredProvider =
+    !explicitProvider && rawModel.includes("/")
+      ? rawModel.split("/")[0] || ""
+      : "";
+  const provider = explicitProvider || inferredProvider;
+
+  if (!rawModel) {
+    return { error: "Missing required field: model" };
+  }
+
+  if (modelSource === "platform" || modelSource === "connection") {
+    if (!provider) {
+      return { error: "provider is required when modelSource=platform" };
+    }
+
+    return {
+      requestedModel: rawModel.startsWith(`${provider}/`)
+        ? rawModel
+        : `${provider}/${rawModel}`,
+      requestedModelLabel: rawModel,
+    };
+  }
+
+  return {
+    requestedModel: rawModel,
+    requestedModelLabel: rawModel,
+  };
+}
 
 const app = express();
 app.use(requestId());
 const port = process.env.PORT || 3001;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:20128";
+const PLATFORM_TIMEOUT_MS = 30_000;
 
 app.use(helmet());
 app.use(cors({
@@ -69,8 +146,8 @@ passport.use(new GoogleStrategy({
             apiKeys: {
               create: {
                 name: "Default Key",
-                key: `tnb_sk_live_${Math.random().toString(36).substring(7)}`,
-                prefix: "sk_live"
+                key: generateApiKey(),
+                prefix: API_KEY_PREFIX
               }
             }
           }
@@ -154,7 +231,7 @@ app.post("/api/auth/user/login", async (req: Request, res: Response) => {
         data: { 
           email, 
           name: email.split("@")[0],
-          apiKeys: { create: { name: "Default Key", key: `tnb_sk_live_${Math.random().toString(36).substring(7)}`, prefix: "sk_live" } } 
+          apiKeys: { create: { name: "Default Key", key: generateApiKey(), prefix: API_KEY_PREFIX } }
         }
       });
     }
@@ -196,8 +273,8 @@ app.post("/api/auth/user/register", async (req: Request, res: Response) => {
         apiKeys: {
           create: {
             name: "Default Key",
-            key: `tnb_sk_live_${Math.random().toString(36).substring(7)}`,
-            prefix: "sk_live"
+            key: generateApiKey(),
+            prefix: API_KEY_PREFIX
           }
         }
       }
@@ -297,8 +374,8 @@ app.post("/api/auth/user/api-keys", async (req: Request, res: Response) => {
       data: {
         userId: user.id,
         name: req.body.name || "Untitled Key",
-        key: `tnb_sk_live_${Math.random().toString(36).substring(7)}`,
-        prefix: "sk_live"
+        key: generateApiKey(),
+        prefix: API_KEY_PREFIX
       }
     });
     
@@ -322,6 +399,59 @@ app.get("/api/auth/user/pending-invites", (req: Request, res: Response) => {
   res.json({ invites: [] });
 });
 
+app.get("/api/auth/user/combos", async (req: Request, res: Response) => {
+  const user = await getRequestUser(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  const combos = await prisma.modelCombo.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: "desc" },
+  });
+  return res.json({ combos: combos.map(serializeCombo) });
+});
+
+app.post("/api/auth/user/combos", async (req: Request, res: Response) => {
+  const user = await getRequestUser(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  const input = normalizeComboInput(req.body);
+  if ("error" in input) return res.status(400).json({ error: input.error });
+
+  try {
+    const combo = await prisma.modelCombo.create({
+      data: { userId: user.id, name: input.name, models: JSON.stringify(input.models) },
+    });
+    return res.status(201).json({ combo: serializeCombo(combo) });
+  } catch {
+    return res.status(409).json({ error: "A combo with this name already exists" });
+  }
+});
+
+app.put("/api/auth/user/combos/:id", async (req: Request, res: Response) => {
+  const user = await getRequestUser(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  const input = normalizeComboInput(req.body);
+  if ("error" in input) return res.status(400).json({ error: input.error });
+  const existing = await prisma.modelCombo.findFirst({ where: { id: req.params.id as string, userId: user.id } });
+  if (!existing) return res.status(404).json({ error: "Combo not found" });
+
+  try {
+    const combo = await prisma.modelCombo.update({
+      where: { id: existing.id },
+      data: { name: input.name, models: JSON.stringify(input.models) },
+    });
+    return res.json({ combo: serializeCombo(combo) });
+  } catch {
+    return res.status(409).json({ error: "A combo with this name already exists" });
+  }
+});
+
+app.delete("/api/auth/user/combos/:id", async (req: Request, res: Response) => {
+  const user = await getRequestUser(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  const deleted = await prisma.modelCombo.deleteMany({ where: { id: req.params.id as string, userId: user.id } });
+  if (deleted.count === 0) return res.status(404).json({ error: "Combo not found" });
+  return res.json({ success: true });
+});
+
 app.get("/api/providers", (req: Request, res: Response) => {
   res.json({
     OAUTH_PROVIDERS,
@@ -331,7 +461,26 @@ app.get("/api/providers", (req: Request, res: Response) => {
     PROVIDER_MODELS
   });
 });
+app.get("/api/models", async (req: Request, res: Response) => {
+  try {
+    const response = await fetchPlatformUpstream("models", {
+        method: "GET",
+        headers: {
+          "content-type": "application/json",
+        },
+      });
 
+    const data = await response.json();
+
+    res.json(data);
+  } catch (error: any) {
+    console.error(error);
+
+    res.status(500).json({
+      error: "Failed to fetch models",
+    });
+  }
+});
 app.get("/api/models/availability", (req: Request, res: Response) => {
   const allProviderIds = [
     ...Object.keys(FREE_PROVIDERS),
@@ -462,20 +611,39 @@ app.get("/api/auth/user/usage/chart", (req: Request, res: Response) => {
 });
 
 import { routeRequest, getKeyStatuses } from "./router";
-import type { Connection } from "./router";
+import type { Connection, ExtraParams } from "./router";
 
 let routerLog: any[] = [];  // keeps the last N routing decisions for the UI
 
 app.post("/v1/chat/completions", async (req: Request, res: Response) => {
-  const { model, messages } = req.body;
+  // ── Extract standard + extended parameters ──────────────────────────────────
+  const {
+    model,
+    messages,
+    temperature,
+    max_tokens,
+    stream = false,
+    media_resolution,   // Gemini: LOW | MEDIUM | HIGH
+    thinking_level,     // Gemini 3+: LOW | MEDIUM | HIGH
+    // Capture any other OpenAI-compatible params (top_p, frequency_penalty, etc.)
+    ...otherParams
+  } = req.body;
+
   const auth = req.headers.authorization;
+  const normalized = normalizeRequestedModel(req.body);
+
+  if ("error" in normalized) {
+    return res.status(400).json({ error: { message: normalized.error } });
+  }
+
+  const { requestedModel, requestedModelLabel } = normalized;
 
   if (!auth || !auth.startsWith("Bearer ")) {
     return res.status(401).json({ error: { message: "Missing or invalid Authorization header. Use: Bearer <system-api-key>" } });
   }
 
   const systemKey = auth.replace("Bearer ", "");
-  
+
   // Find user by system key
   const keyRecord = await prisma.apiKey.findUnique({
     where: { key: systemKey },
@@ -486,8 +654,64 @@ app.post("/v1/chat/completions", async (req: Request, res: Response) => {
     return res.status(401).json({ error: { message: "Invalid system API key" } });
   }
 
-  if (!model) {
-    return res.status(400).json({ error: { message: "Missing required field: model" } });
+  if (req.body?.modelSource === "platform") {
+    try {
+      const { modelSource, provider, ...restBody } = req.body;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), PLATFORM_TIMEOUT_MS);
+      const upstreamResponse = await fetchPlatformUpstream("chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...restBody,
+          model: requestedModel,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      const contentType = upstreamResponse.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await upstreamResponse.json();
+        return res.status(upstreamResponse.status).json(data);
+      }
+
+      const text = await upstreamResponse.text();
+      return res
+        .status(upstreamResponse.status)
+        .type(contentType || "text/plain")
+        .send(text);
+    } catch (error: any) {
+      if (error?.name === "AbortError") {
+        return res.status(504).json({
+          error: {
+            message: `Platform upstream timeout after ${PLATFORM_TIMEOUT_MS}ms`,
+          },
+        });
+      }
+
+      return res.status(error instanceof PlatformUpstreamConfigurationError ? 500 : 502).json({
+        error: {
+          message: error?.message || "Failed to reach platform upstream",
+        },
+      });
+    }
+  }
+
+  // Validate optional parameters
+  if (temperature !== undefined && (typeof temperature !== "number" || temperature < 0 || temperature > 2)) {
+    return res.status(400).json({ error: { message: "temperature must be a number between 0 and 2" } });
+  }
+  if (max_tokens !== undefined && (typeof max_tokens !== "number" || max_tokens < 1)) {
+    return res.status(400).json({ error: { message: "max_tokens must be a positive integer" } });
+  }
+  if (media_resolution !== undefined && !["LOW", "MEDIUM", "HIGH"].includes(media_resolution)) {
+    return res.status(400).json({ error: { message: "media_resolution must be LOW, MEDIUM, or HIGH" } });
+  }
+  if (thinking_level !== undefined && !["LOW", "MEDIUM", "HIGH"].includes(thinking_level)) {
+    return res.status(400).json({ error: { message: "thinking_level must be LOW, MEDIUM, or HIGH" } });
   }
 
   // Fetch real connections for this user
@@ -495,16 +719,89 @@ app.post("/v1/chat/completions", async (req: Request, res: Response) => {
     where: { userId: keyRecord.userId, isActive: true }
   });
 
-  // Cast to Connection type for the router
   const connections: Connection[] = connectionsFromDb as any[];
 
-  const result = await routeRequest(connections, model, messages || []);
+  // Build extra params to forward to the router / provider
+  const extraParams: ExtraParams = {
+    ...(temperature    !== undefined && { temperature }),
+    ...(max_tokens     !== undefined && { max_tokens }),
+    ...(stream         !== false     && { stream: true }),
+    ...(media_resolution             && { media_resolution }),
+    ...(thinking_level               && { thinking_level }),
+    ...otherParams,
+  };
 
+  const combo = await prisma.modelCombo.findUnique({
+    where: { userId_name: { userId: keyRecord.userId, name: requestedModel } },
+  });
+  const comboModels = combo ? parseComboModels(combo.models) : [];
+  const modelsToTry = comboModels.length > 0 ? comboModels : [requestedModel];
+  let result = await routeRequest(connections, modelsToTry[0]!, messages || [], extraParams);
+
+  for (const fallbackModel of modelsToTry.slice(1)) {
+    if (result.success) break;
+    const fallbackResult = await routeRequest(connections, fallbackModel, messages || [], extraParams);
+    result = {
+      ...fallbackResult,
+      attempts: [...result.attempts, ...fallbackResult.attempts],
+      rotatedProvider: result.rotatedProvider || fallbackResult.rotatedProvider || true,
+      rotatedKey: result.rotatedKey || fallbackResult.rotatedKey,
+      totalDurationMs: result.totalDurationMs + fallbackResult.totalDurationMs,
+    };
+  }
+
+  // ── Streaming path ──────────────────────────────────────────────────────────
+  if (stream && result.success && result.rawResponse) {
+    // Pipe the SSE stream from the upstream provider directly to the client
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");  // disable nginx buffering if present
+
+    const body = result.rawResponse.body;
+    if (body) {
+      const reader = body.getReader();
+      const decoder = new TextDecoder();
+
+      const pump = async () => {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) { res.end(); break; }
+            res.write(decoder.decode(value, { stream: true }));
+          }
+        } catch (err) {
+          res.end();
+        }
+      };
+
+      req.on("close", () => reader.cancel());
+      pump();
+    } else {
+      res.end();
+    }
+
+    // Log asynchronously without awaiting
+    prisma.routerLog.create({
+      data: {
+        requestedModel: requestedModelLabel,
+        usedModel: result.usedModel,
+        success: true,
+        rotated: result.rotatedKey || result.rotatedProvider,
+        totalAttempts: result.attempts.length,
+        attempts: JSON.stringify(result.attempts)
+      }
+    }).catch((e: any) => console.error("Failed to save router log:", e));
+
+    return;
+  }
+
+  // ── Non-streaming path ──────────────────────────────────────────────────────
   // Persist to routing log in DB
   try {
     await prisma.routerLog.create({
       data: {
-        requestedModel: model,
+        requestedModel: requestedModelLabel,
         usedModel: result.usedModel,
         success: result.success,
         rotated: result.rotatedKey || result.rotatedProvider,
@@ -527,7 +824,7 @@ app.post("/v1/chat/completions", async (req: Request, res: Response) => {
 
   return res.status(503).json({
     error: {
-      message: `All keys exhausted for model "${model}". Tried ${result.attempts.length} connection(s).`,
+      message: `All keys exhausted for model "${requestedModelLabel}". Tried ${result.attempts.length} connection(s).`,
       type: "no_available_keys",
       attempts: result.attempts
     },

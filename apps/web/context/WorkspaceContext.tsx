@@ -12,6 +12,7 @@ export const useWorkspaceSWR = <T,>(url: string | null) => {
 export type Workspace = {
   id: string;
   name: string;
+  type?: "personal" | "team" | string;
   role?: WorkspaceRole;
   credits?: number;
   budgetLimitUSD?: number;
@@ -90,4 +91,3 @@ export function useWorkspace(): WorkspaceContextValue {
   }
   return value;
 }
-

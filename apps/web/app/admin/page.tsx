@@ -71,6 +71,7 @@ export default function AdminOverviewPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { title: "Manage Users",     desc: "View, ban, or delete user accounts", href: "/admin/users", icon: "manage_accounts", color: "blue" },
+          { title: "Billing Packages", desc: "Create and control packages shown in billing", href: "/admin/packages", icon: "inventory_2", color: "emerald" },
           { title: "API Keys",         desc: "Revoke or inspect system API keys",   href: "/admin/keys",  icon: "vpn_key",         color: "amber" },
           { title: "Router Audit Log", desc: "View all routing decisions",          href: "/admin/logs",  icon: "route",           color: "indigo" },
         ].map((card) => (

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 const Card = ({ children, className }: any) => (
-  <div className={`rounded-2xl border bg-card shadow-sm ${className || "border-border"}`}>
+  <div className={`rounded-2xl p-4 border bg-card shadow-sm ${className || "border-border"}`}>
     {children}
   </div>
 );
@@ -203,11 +203,10 @@ function StatPair({
 
   return (
     <div
-      className={`rounded-xl px-4 py-3 border ${
-        highlight
-          ? "border-emerald-500/20 bg-emerald-500/5"
-          : "border-border/50 bg-surface/30"
-      }`}
+      className={`rounded-xl px-4 py-3 border ${highlight
+        ? "border-emerald-500/20 bg-emerald-500/5"
+        : "border-border/50 bg-surface/30"
+        }`}
     >
       <div className="flex items-center gap-1.5 mb-1">
         <span
@@ -220,9 +219,8 @@ function StatPair({
         </span>
       </div>
       <p
-        className={`text-base font-bold tabular-nums ${
-          highlight ? "text-emerald-500" : "text-text-main"
-        }`}
+        className={`text-base font-bold tabular-nums ${highlight ? "text-emerald-500" : "text-text-main"
+          }`}
       >
         {value}
       </p>
@@ -373,7 +371,7 @@ export default function BillingPage() {
       try {
         const res = await fetch("/api/payments/create-order", {
           method: "POST",
-          headers: { 
+          headers: {
             "Content-Type": "application/json",
             "X-Workspace-Id": activeWorkspace.id
           },
@@ -465,22 +463,20 @@ export default function BillingPage() {
       <div className="flex gap-4 p-1 bg-surface/50 border border-border/50 rounded-2xl w-fit">
         <button
           onClick={() => setPaymentMethod("sepay")}
-          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${
-            paymentMethod === "sepay" 
-              ? "bg-primary text-white shadow-lg shadow-primary/20" 
-              : "text-text-muted hover:bg-surface"
-          }`}
+          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${paymentMethod === "sepay"
+            ? "bg-primary text-white shadow-lg shadow-primary/20"
+            : "text-text-muted hover:bg-surface"
+            }`}
         >
           <span className="material-symbols-outlined">account_balance</span>
           Bank Transfer (VND)
         </button>
         <button
           onClick={() => setPaymentMethod("polar")}
-          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${
-            paymentMethod === "polar" 
-              ? "bg-primary text-white shadow-lg shadow-primary/20" 
-              : "text-text-muted hover:bg-surface"
-          }`}
+          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${paymentMethod === "polar"
+            ? "bg-primary text-white shadow-lg shadow-primary/20"
+            : "text-text-muted hover:bg-surface"
+            }`}
         >
           <span className="material-symbols-outlined">credit_card</span>
           International Card (USD)
@@ -495,14 +491,14 @@ export default function BillingPage() {
       />
 
       {/* SePay QR Modal */}
-      <Modal 
-        isOpen={!!sepayOrder} 
+      <Modal
+        isOpen={!!sepayOrder}
         onClose={() => { setSepayOrder(null); setIsPolling(false); }}
         title="Thanh toán chuyển khoản"
       >
         <div className="flex flex-col items-center gap-6 p-2 text-center">
           <p className="text-sm text-text-muted">
-            Vui lòng quét mã QR dưới đây để thực hiện thanh toán.<br/>
+            Vui lòng quét mã QR dưới đây để thực hiện thanh toán.<br />
             Hệ thống sẽ tự động cộng Credits sau khi nhận được tiền.
           </p>
 
@@ -513,7 +509,7 @@ export default function BillingPage() {
                 <img src={sepayOrder.qrUrl} alt="SePay QR" className="w-64 h-64" />
               ) : (
                 <div className="w-64 h-64 flex items-center justify-center bg-surface">
-                   <Spinner className="" size="lg" />
+                  <Spinner className="" size="lg" />
                 </div>
               )}
             </div>
@@ -537,8 +533,8 @@ export default function BillingPage() {
           </div>
 
           <div className="text-[10px] text-text-muted flex items-start gap-2 max-w-sm">
-             <span className="material-symbols-outlined text-sm mt-0.5">info</span>
-             <span>Lưu ý: Bạn phải chuyển đúng <b>Chính xác số tiền</b> và <b>Nội dung chuyển khoản</b> để được cộng tiền tự động.</span>
+            <span className="material-symbols-outlined text-sm mt-0.5">info</span>
+            <span>Lưu ý: Bạn phải chuyển đúng <b>Chính xác số tiền</b> và <b>Nội dung chuyển khoản</b> để được cộng tiền tự động.</span>
           </div>
         </div>
       </Modal>
@@ -644,8 +640,8 @@ export default function BillingPage() {
                   />
                 </div>
                 <p className="text-xs text-text-muted italic">
-                  {paymentMethod === "sepay" 
-                    ? `Credits = (VND / ${vndUsdRate}) × ${globalRate} ratio. Estimated: ` 
+                  {paymentMethod === "sepay"
+                    ? `Credits = (VND / ${vndUsdRate}) × ${globalRate} ratio. Estimated: `
                     : `Credits = Amount × ${globalRate} ratio. Estimated: `}
                   <b>${calculatedCredits} credits</b>.
                 </p>
@@ -724,8 +720,8 @@ export default function BillingPage() {
                           order.status === "completed"
                             ? "success"
                             : order.status === "pending"
-                            ? "neutral"
-                            : "error"
+                              ? "neutral"
+                              : "error"
                         }
                         className="text-[9px]"
                       >

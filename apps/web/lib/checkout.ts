@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSettings } from "@/lib/localDb";
-import { findBillingPackage } from "@/lib/mockBilling";
+import { getPricingPackageById } from "@/lib/pricingPackages";
 import { getServerEnv } from "@/lib/serverEnv";
 
 /**
@@ -31,7 +31,7 @@ export async function handlePolarCheckout(request: Request) {
     let packageName = "Custom Top-up";
 
     if (packageId) {
-      const pkg = findBillingPackage(packageId);
+      const pkg = await getPricingPackageById(packageId);
       if (!pkg || !pkg.isActive) {
         return NextResponse.json({ error: "Invalid or inactive package" }, { status: 400 });
       }

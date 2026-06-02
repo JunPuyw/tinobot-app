@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { getSettings } from "@/lib/localDb";
+import { getPricingPackageById } from "@/lib/pricingPackages";
 
 
 const SECRET = new TextEncoder().encode(
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     let packageName = "Custom Top-up";
 
     if (packageId) {
-      const pkg = await prisma.pricingPackage.findUnique({ where: { id: packageId } });
+      const pkg = await getPricingPackageById(packageId);
       if (!pkg || !pkg.isActive) {
         return NextResponse.json({ error: "Invalid or inactive package" }, { status: 400 });
       }

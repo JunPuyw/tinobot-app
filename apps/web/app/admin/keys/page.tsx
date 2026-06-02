@@ -108,7 +108,7 @@ export default function AdminKeysPage() {
                     </td>
                     <td className="px-5 py-4">
                       <span className="font-mono text-[11px] bg-surface px-2.5 py-1 rounded-lg border border-border text-amber-500">
-                        {k.prefix}_••••••••
+                        {k.prefix}-••••••••
                       </span>
                     </td>
                     <td className="px-5 py-4 text-[11px] text-text-muted whitespace-nowrap">

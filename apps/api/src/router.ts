@@ -64,7 +64,8 @@ export type RouteAttempt = {
 
 export type RouteResult = {
   success: boolean;
-  response?: any;          // The forwarded provider response
+  response?: any;          // The forwarded provider response (non-stream)
+  rawResponse?: Response;  // The raw fetch Response (streaming)
   usedConnection?: Connection;
   usedModel: string;
   attempts: RouteAttempt[];
@@ -143,11 +144,21 @@ const PROVIDER_BASE_URLS: Record<string, string> = {
   "ollama-local": "http://localhost:11434/v1",
 };
 
+export type ExtraParams = {
+  temperature?: number;
+  max_tokens?: number;
+  stream?: boolean;
+  media_resolution?: string;  // Gemini: LOW | MEDIUM | HIGH
+  thinking_level?: string;    // Gemini 3+: LOW | MEDIUM | HIGH
+  [key: string]: any;         // forward any other OpenAI-compatible params
+};
+
 async function forwardToProvider(
   connection: Connection,
   model: string,
   messages: any[],
-): Promise<{ ok: boolean; httpStatus: number; data: any; durationMs: number }> {
+  extraParams: ExtraParams = {},
+): Promise<{ ok: boolean; httpStatus: number; data: any; durationMs: number; rawResponse?: Response }> {
   const start = Date.now();
   const nameLower = (connection.name || "").toLowerCase();
 
@@ -199,6 +210,24 @@ async function forwardToProvider(
     cleanModel = model.slice(provider.length + 1);
   }
 
+  // Build request body — forward all extra params, then provider-specific overrides
+  const { stream, media_resolution, thinking_level, ...restParams } = extraParams;
+
+  const requestBody: Record<string, any> = {
+    model: cleanModel,
+    messages,
+    ...restParams,         // temperature, max_tokens, etc.
+  };
+
+  if (stream) requestBody.stream = true;
+
+  // Gemini-specific extensions
+  const isGemini = provider === "gemini" || provider === "google";
+  if (isGemini) {
+    if (media_resolution) requestBody.media_resolution = media_resolution;
+    if (thinking_level)   requestBody.thinking_level   = thinking_level;
+  }
+
   try {
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
@@ -206,13 +235,16 @@ async function forwardToProvider(
         "Content-Type": "application/json",
         "Authorization": `Bearer ${connection.apiKey}`,
       },
-      body: JSON.stringify({
-        model: cleanModel,
-        messages: messages,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const durationMs = Date.now() - start;
+
+    // For streaming responses return the raw Response so the caller can pipe it
+    if (stream && response.ok) {
+      return { ok: true, httpStatus: response.status, data: null, durationMs, rawResponse: response };
+    }
+
     let data;
     try {
       data = await response.json();
@@ -287,6 +319,7 @@ export async function routeRequest(
   allConnections: Connection[],
   requestedModel: string,
   messages: any[],
+  extraParams: ExtraParams = {},
 ): Promise<RouteResult> {
   const startTime = Date.now();
   const attempts: RouteAttempt[] = [];
@@ -329,7 +362,7 @@ export async function routeRequest(
       let attempt: RouteAttempt;
 
       try {
-        const result = await forwardToProvider(connection, modelToCall, messages);
+        const result = await forwardToProvider(connection, modelToCall, messages, extraParams);
 
         attempt = {
           connectionId: connection.id,
@@ -347,6 +380,7 @@ export async function routeRequest(
           return {
             success: true,
             response: result.data,
+            ...(result.rawResponse ? { rawResponse: result.rawResponse } : {}),
             usedConnection: connection,
             usedModel: modelToCall,
             attempts,

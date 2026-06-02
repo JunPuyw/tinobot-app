@@ -8,20 +8,12 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
-let prisma: PrismaClient;
-
-if (process.env.NODE_ENV === "production") {
-  // In production we can safely instantiate a new client
-  prisma = new PrismaClient();
-} else {
-  // In development, reuse the client across hot reloads to avoid too many connections
-  if (!global.prisma) {
-    const adapter = new PrismaLibSql({
-      url: process.env.DATABASE_URL || "file:./dev.db",
-    });
-    global.prisma = new PrismaClient({ adapter });
-  }
-  prisma = global.prisma as PrismaClient;
+if (!global.prisma || !global.prisma.modelCombo || !global.prisma.pricingPackage) {
+  void global.prisma?.$disconnect();
+  const adapter = new PrismaLibSql({
+    url: process.env.DATABASE_URL || "file:./dev.db",
+  });
+  global.prisma = new PrismaClient({ adapter });
 }
 
-export default prisma;
+export default global.prisma as PrismaClient;

@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 const adminNav = [
   { name: "Overview",  href: "/admin",       icon: "admin_panel_settings" },
   { name: "Users",     href: "/admin/users",  icon: "group" },
+  { name: "Packages",  href: "/admin/packages", icon: "inventory_2" },
   { name: "API Keys",  href: "/admin/keys",   icon: "key" },
   { name: "Router Log",href: "/admin/logs",   icon: "route" },
 ];
