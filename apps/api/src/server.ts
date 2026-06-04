@@ -11,7 +11,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import session from "express-session";
 import cookieParser from "cookie-parser";
 import prisma from "./lib/prisma";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { fetchPlatformUpstream, PlatformUpstreamConfigurationError } from "./lib/platformUpstreams";
 
 dotenv.config();
@@ -32,6 +32,46 @@ function parseComboModels(models: string) {
   }
 }
 
+const SYSTEM_FALLBACK_MODELS: Record<string, string> = {
+  openai: "gpt-4o-mini",
+  gemini: "gemini-2.5-flash",
+  google: "gemini-2.5-flash",
+  deepseek: "deepseek-chat",
+  groq: "llama-3.3-70b-versatile",
+  xai: "grok-4-fast-reasoning",
+  mistral: "mistral-large-latest",
+  glm: "glm-4.7",
+  qwen: "qwen3-coder-flash",
+  iflow: "qwen3-coder-plus",
+};
+
+function getSystemFallbackModel(provider: string) {
+  const configuredModel = SYSTEM_FALLBACK_MODELS[provider];
+  if (configuredModel) return `${provider}/${configuredModel}`;
+
+  const providerModels = (PROVIDER_MODELS as Record<string, Array<{ id: string; type?: string }>>)[provider] || [];
+  const textModel = providerModels.find((entry) => !entry.type || entry.type === "llm");
+  return textModel ? `${provider}/${textModel.id}` : null;
+}
+
+function buildSystemModelsToTry(requestedModel: string, connections: Connection[]) {
+  const requestedProvider = requestedModel.split("/")[0];
+  const models = [requestedModel];
+  const providers = [...new Set(connections.map((connection) => connection.provider))];
+
+  for (const provider of providers) {
+    if (provider === requestedProvider) continue;
+    const fallbackModel = getSystemFallbackModel(provider);
+    if (fallbackModel) models.push(fallbackModel);
+  }
+
+  return [...new Set(models)];
+}
+
+function getAttemptedModels(attempts: Array<{ modelUsed: string }>) {
+  return [...new Set(attempts.map((attempt) => attempt.modelUsed))];
+}
+
 function normalizeComboInput(body: any) {
   const name = typeof body?.name === "string" ? body.name.trim() : "";
   const models = Array.isArray(body?.models)
@@ -47,6 +87,192 @@ function normalizeComboInput(body: any) {
 
 function serializeCombo(combo: { id: string; name: string; models: string; createdAt: Date; updatedAt: Date }) {
   return { ...combo, models: parseComboModels(combo.models) };
+}
+
+function rewriteBeeknoeeBrand(value: unknown): unknown {
+  if (typeof value === "string") return value.replace(/beeknoee/gi, "tinobot");
+  if (Array.isArray(value)) return value.map(rewriteBeeknoeeBrand);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, rewriteBeeknoeeBrand(entry)]),
+    );
+  }
+  return value;
+}
+
+function normalizeModelCatalog(payload: any): any[] {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.models)) return payload.models;
+  return [];
+}
+
+type ResolvedPricingMode = "FREE" | "REQUEST" | "TOKEN";
+
+function roundCredits(value: number) {
+  return Math.round(value * 1_000_000_000_000) / 1_000_000_000_000;
+}
+
+function getUsageLogDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function getUsageStartDate(period: string) {
+  const now = Date.now();
+  const hours = period === "24h" ? 24 : period === "30d" ? 24 * 30 : 24 * 7;
+  return new Date(now - hours * 60 * 60 * 1000);
+}
+
+function formatUsageDay(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+async function incrementClientDailyUsage(tx: any, clientId: string, tokensUsed: number) {
+  const logDate = getUsageLogDate();
+  await tx.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS client_daily_usage (
+      id TEXT NOT NULL PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      log_date TEXT NOT NULL,
+      tokens_used INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await tx.$executeRaw`
+    CREATE UNIQUE INDEX IF NOT EXISTS client_daily_usage_client_id_log_date_key
+    ON client_daily_usage (client_id, log_date)
+  `;
+  await tx.$executeRaw`
+    INSERT INTO client_daily_usage (id, client_id, log_date, tokens_used, created_at, updated_at)
+    VALUES (${`${clientId}-${logDate}`}, ${clientId}, ${logDate}, ${tokensUsed}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT (client_id, log_date)
+    DO UPDATE SET
+      tokens_used = client_daily_usage.tokens_used + excluded.tokens_used,
+      updated_at = CURRENT_TIMESTAMP
+  `;
+}
+
+function logPlatformFlow(flowId: string, event: string, details: Record<string, unknown> = {}) {
+  logger.info({ flowId, event, ...details }, "Platform flow");
+}
+
+function logPlatformFlowError(flowId: string, event: string, details: Record<string, unknown> = {}) {
+  logger.error({ flowId, event, ...details }, "Platform flow");
+}
+
+function resolvePricingMode(pricing: any): ResolvedPricingMode {
+  if (typeof pricing?.mode === "string" && pricing.mode.toUpperCase() === "REQUEST") {
+    if (pricing.fixed_price_vnd === null || pricing.fixed_price_vnd === undefined) {
+      throw new Error("REQUEST pricing is missing fixed_price_vnd");
+    }
+    return Number(pricing.fixed_price_vnd) === 0 ? "FREE" : "REQUEST";
+  }
+
+  if (
+    pricing?.input === null ||
+    pricing?.input === undefined ||
+    pricing?.output === null ||
+    pricing?.output === undefined
+  ) {
+    throw new Error("TOKEN pricing is missing input or output price");
+  }
+  return Number(pricing.input) === 0 && Number(pricing.output) === 0 ? "FREE" : "TOKEN";
+}
+
+async function chargePlatformUsage(userId: string, model: string, payload: any, flowId: string) {
+  const catalogStartedAt = Date.now();
+  logPlatformFlow(flowId, "pricing.catalog.start", { model });
+  const [settings, catalogResponse] = await Promise.all([
+    prisma.gatewaySetting.upsert({
+      where: { id: "default" },
+      update: {},
+      create: { id: "default" },
+    }),
+    fetchPlatformUpstream("management/models/text", {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    }),
+  ]);
+  if (!catalogResponse.ok) throw new Error(`Failed to fetch model pricing (${catalogResponse.status})`);
+
+  const catalog = normalizeModelCatalog(await catalogResponse.json());
+  logPlatformFlow(flowId, "pricing.catalog.complete", {
+    model,
+    status: catalogResponse.status,
+    modelCount: catalog.length,
+    durationMs: Date.now() - catalogStartedAt,
+  });
+  const catalogModel = catalog.find((entry) => [entry.model_id, entry.id, entry.model].includes(model));
+  if (!catalogModel?.pricing) throw new Error(`Pricing not found for model: ${model}`);
+
+  const pricing = catalogModel.pricing;
+  const pricingMode = resolvePricingMode(pricing);
+  const promptTokens = Number(payload?.usage?.prompt_tokens || 0);
+  const completionTokens = Number(payload?.usage?.completion_tokens || 0);
+  logPlatformFlow(flowId, "pricing.model.matched", {
+    model,
+    pricingMode,
+    fixedPriceVnd: pricing.fixed_price_vnd ?? null,
+    inputPrice: pricing.input ?? null,
+    outputPrice: pricing.output ?? null,
+  });
+  const baseCredits = roundCredits(pricingMode === "FREE"
+    ? 0
+    : pricingMode === "REQUEST"
+      ? Number(pricing.fixed_price_vnd) / settings.vndUsdRate
+    : (promptTokens * Number(pricing.input || 0) + completionTokens * Number(pricing.output || 0)) / 1_000_000);
+  const markupCredits = roundCredits(baseCredits * (settings.platformMarkupPercent / 100));
+  const chargedCredits = roundCredits(baseCredits + markupCredits);
+  logPlatformFlow(flowId, "credits.calculated", {
+    model,
+    pricingMode,
+    promptTokens,
+    completionTokens,
+    baseCredits,
+    markupPercent: settings.platformMarkupPercent,
+    markupCredits,
+    chargedCredits,
+  });
+
+  const creditsRemaining = await prisma.$transaction(async (tx) => {
+    const updated = await tx.user.updateMany({
+      where: { id: userId, credits: { gte: chargedCredits } },
+      data: { credits: { decrement: chargedCredits } },
+    });
+    if (updated.count === 0) throw new Error("User has insufficient credits");
+    await tx.platformUsage.create({
+      data: {
+        userId,
+        model,
+        pricingMode,
+        promptTokens,
+        completionTokens,
+        baseCredits,
+        markupPercent: settings.platformMarkupPercent,
+        chargedCredits,
+      },
+    });
+    await incrementClientDailyUsage(tx, userId, promptTokens + completionTokens);
+    return roundCredits((await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { credits: true } })).credits);
+  });
+  logPlatformFlow(flowId, "credits.debited", {
+    model,
+    pricingMode,
+    chargedCredits,
+    creditsRemaining,
+  });
+
+  return { pricingMode, baseCredits, markupPercent: settings.platformMarkupPercent, markupCredits, chargedCredits, creditsRemaining };
 }
 
 async function getRequestUser(req: Request) {
@@ -321,19 +547,20 @@ app.get("/api/auth/user/me", async (req: Request, res: Response) => {
   }
 });
 
-app.get("/api/auth/user/workspaces", (req: Request, res: Response) => {
+app.get("/api/auth/user/workspaces", async (req: Request, res: Response) => {
+  const user = await getRequestUser(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
   res.json({
-    workspaces: [
-      {
-        id: "ws-main",
-        name: "Main Workspace",
-        role: "owner",
-        credits: 100.0,
-        budgetLimitUSD: 200,
-        usedUSD: 25.5,
-        reservedUSD: 0
-      }
-    ]
+    workspaces: [{
+      id: `user-${user.id}`,
+      name: "Personal",
+      type: "personal",
+      role: "owner",
+      credits: user.credits,
+      budgetLimitUSD: 0,
+      usedUSD: 0,
+      reservedUSD: 0,
+    }],
   });
 });
 
@@ -463,7 +690,7 @@ app.get("/api/providers", (req: Request, res: Response) => {
 });
 app.get("/api/models", async (req: Request, res: Response) => {
   try {
-    const response = await fetchPlatformUpstream("models", {
+    const response = await fetchPlatformUpstream("management/models/text", {
         method: "GET",
         headers: {
           "content-type": "application/json",
@@ -472,7 +699,7 @@ app.get("/api/models", async (req: Request, res: Response) => {
 
     const data = await response.json();
 
-    res.json(data);
+    res.json(rewriteBeeknoeeBrand(data));
   } catch (error: any) {
     console.error(error);
 
@@ -492,18 +719,6 @@ app.get("/api/models/availability", (req: Request, res: Response) => {
   res.json({
     models: allProviderIds.map(id => ({ provider: id, model: "default-model", status: "available" })),
     unavailableCount: 0
-  });
-});
-
-app.get("/api/models", (req: Request, res: Response) => {
-  res.json({
-    models: {
-      "openai/gpt-4o-mini": { provider: "openai" },
-      "openai/gpt-4o": { provider: "openai" },
-      "anthropic/claude-3-haiku": { provider: "anthropic" },
-      "google/gemini-pro": { provider: "google" },
-      "qwen/qwen-max": { provider: "qwen" }
-    }
   });
 });
 
@@ -596,18 +811,89 @@ app.get("/api/payments/orders", (req: Request, res: Response) => {
   res.json({ orders: [] });
 });
 
-app.get("/api/auth/user/usage/stats", (req: Request, res: Response) => {
+app.get("/api/auth/user/usage/stats", async (req: Request, res: Response) => {
+  const user = await getRequestUser(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  const startDate = getUsageStartDate(String(req.query.period || "7d"));
+  const usages = await prisma.platformUsage.findMany({
+    where: { userId: user.id, createdAt: { gte: startDate } },
+    orderBy: { createdAt: "desc" },
+  });
+  const byModel: Record<string, any> = {};
+
+  for (const usage of usages) {
+    const provider = usage.model.includes("/") ? usage.model.split("/")[0] : "platform";
+    const item = byModel[usage.model] || {
+      rawModel: usage.model,
+      provider,
+      requests: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+      cost: 0,
+      lastUsed: usage.createdAt.toISOString(),
+    };
+    item.requests += 1;
+    item.promptTokens += usage.promptTokens;
+    item.completionTokens += usage.completionTokens;
+    item.cost += usage.chargedCredits;
+    if (usage.createdAt > new Date(item.lastUsed)) item.lastUsed = usage.createdAt.toISOString();
+    byModel[usage.model] = item;
+  }
+
   res.json({
-    totalRequests: 0,
-    totalCost: 0,
-    totalPromptTokens: 0,
-    totalCompletionTokens: 0,
-    byModel: {}
+    totalRequests: usages.length,
+    totalCost: usages.reduce((sum, usage) => sum + usage.chargedCredits, 0),
+    totalPromptTokens: usages.reduce((sum, usage) => sum + usage.promptTokens, 0),
+    totalCompletionTokens: usages.reduce((sum, usage) => sum + usage.completionTokens, 0),
+    byModel,
   });
 });
 
-app.get("/api/auth/user/usage/chart", (req: Request, res: Response) => {
-  res.json([]);
+app.get("/api/auth/user/usage/chart", async (req: Request, res: Response) => {
+  const user = await getRequestUser(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  const startDate = getUsageStartDate(String(req.query.period || "7d"));
+  const usages = await prisma.platformUsage.findMany({
+    where: { userId: user.id, createdAt: { gte: startDate } },
+    orderBy: { createdAt: "asc" },
+  });
+  const byDay = new Map<string, { label: string; tokens: number; cost: number }>();
+
+  for (const usage of usages) {
+    const label = formatUsageDay(usage.createdAt);
+    const item = byDay.get(label) || { label, tokens: 0, cost: 0 };
+    item.tokens += usage.promptTokens + usage.completionTokens;
+    item.cost += usage.chargedCredits;
+    byDay.set(label, item);
+  }
+
+  res.json([...byDay.values()]);
+});
+
+app.get("/api/auth/user/usage/history", async (req: Request, res: Response) => {
+  const user = await getRequestUser(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  const startDate = getUsageStartDate(String(req.query.period || "7d"));
+  const usages = await prisma.platformUsage.findMany({
+    where: { userId: user.id, createdAt: { gte: startDate } },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+
+  res.json({
+    items: usages.map((usage) => ({
+      id: usage.id,
+      model: usage.model,
+      pricingMode: usage.pricingMode,
+      promptTokens: usage.promptTokens,
+      completionTokens: usage.completionTokens,
+      totalTokens: usage.promptTokens + usage.completionTokens,
+      baseCredits: usage.baseCredits,
+      markupPercent: usage.markupPercent,
+      chargedCredits: usage.chargedCredits,
+      createdAt: usage.createdAt.toISOString(),
+    })),
+  });
 });
 
 import { routeRequest, getKeyStatuses } from "./router";
@@ -655,10 +941,33 @@ app.post("/v1/chat/completions", async (req: Request, res: Response) => {
   }
 
   if (req.body?.modelSource === "platform") {
+    const flowId = String((req as any).id || req.headers["x-request-id"] || randomUUID());
+    const requestStartedAt = Date.now();
+    logPlatformFlow(flowId, "request.received", {
+      path: req.path,
+      model: requestedModelLabel,
+      upstreamModel: requestedModel,
+      messageCount: Array.isArray(req.body?.messages) ? req.body.messages.length : 0,
+      stream: req.body?.stream === true,
+      userId: keyRecord.userId,
+      creditsBefore: keyRecord.user.credits,
+    });
+    if (req.body?.stream === true) {
+      logPlatformFlow(flowId, "request.rejected", {
+        model: requestedModelLabel,
+        reason: "Platform billing currently requires stream=false",
+      });
+      return res.status(400).json({ error: { message: "Platform billing currently requires stream=false" } });
+    }
     try {
       const { modelSource, provider, ...restBody } = req.body;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), PLATFORM_TIMEOUT_MS);
+      const upstreamStartedAt = Date.now();
+      logPlatformFlow(flowId, "upstream.chat.start", {
+        model: requestedModelLabel,
+        upstreamModel: requestedModel,
+      });
       const upstreamResponse = await fetchPlatformUpstream("chat/completions", {
         method: "POST",
         headers: {
@@ -673,17 +982,49 @@ app.post("/v1/chat/completions", async (req: Request, res: Response) => {
       clearTimeout(timeout);
 
       const contentType = upstreamResponse.headers.get("content-type") || "";
+      logPlatformFlow(flowId, "upstream.chat.complete", {
+        model: requestedModelLabel,
+        upstreamModel: requestedModel,
+        status: upstreamResponse.status,
+        contentType,
+        durationMs: Date.now() - upstreamStartedAt,
+      });
       if (contentType.includes("application/json")) {
         const data = await upstreamResponse.json();
-        return res.status(upstreamResponse.status).json(data);
+        const charge = upstreamResponse.ok
+          ? await chargePlatformUsage(keyRecord.userId, requestedModelLabel, data, flowId)
+          : null;
+        logPlatformFlow(flowId, "request.complete", {
+          model: requestedModelLabel,
+          status: upstreamResponse.status,
+          durationMs: Date.now() - requestStartedAt,
+        });
+        return res.status(upstreamResponse.status).json({
+          ...data,
+          _gateway: {
+            ...(data?._gateway || {}),
+            mode: "platform",
+            ...(charge || {}),
+          },
+        });
       }
 
       const text = await upstreamResponse.text();
+      logPlatformFlow(flowId, "request.complete", {
+        model: requestedModelLabel,
+        status: upstreamResponse.status,
+        durationMs: Date.now() - requestStartedAt,
+      });
       return res
         .status(upstreamResponse.status)
         .type(contentType || "text/plain")
         .send(text);
     } catch (error: any) {
+      logPlatformFlowError(flowId, "request.failed", {
+        model: requestedModelLabel,
+        message: error?.message || "Failed to reach platform upstream",
+        durationMs: Date.now() - requestStartedAt,
+      });
       if (error?.name === "AbortError") {
         return res.status(504).json({
           error: {
@@ -692,7 +1033,7 @@ app.post("/v1/chat/completions", async (req: Request, res: Response) => {
         });
       }
 
-      return res.status(error instanceof PlatformUpstreamConfigurationError ? 500 : 502).json({
+      return res.status(error?.message === "User has insufficient credits" ? 402 : error instanceof PlatformUpstreamConfigurationError ? 500 : 502).json({
         error: {
           message: error?.message || "Failed to reach platform upstream",
         },
@@ -735,7 +1076,11 @@ app.post("/v1/chat/completions", async (req: Request, res: Response) => {
     where: { userId_name: { userId: keyRecord.userId, name: requestedModel } },
   });
   const comboModels = combo ? parseComboModels(combo.models) : [];
-  const modelsToTry = comboModels.length > 0 ? comboModels : [requestedModel];
+  const modelsToTry = comboModels.length > 0
+    ? comboModels
+    : req.body?.modelSource === "system"
+      ? buildSystemModelsToTry(requestedModel, connections)
+      : [requestedModel];
   let result = await routeRequest(connections, modelsToTry[0]!, messages || [], extraParams);
 
   for (const fallbackModel of modelsToTry.slice(1)) {
@@ -824,8 +1169,19 @@ app.post("/v1/chat/completions", async (req: Request, res: Response) => {
 
   return res.status(503).json({
     error: {
-      message: `All keys exhausted for model "${requestedModelLabel}". Tried ${result.attempts.length} connection(s).`,
-      type: "no_available_keys",
+      message: req.body?.modelSource === "system"
+        ? `All system fallback models exhausted. Tried ${getAttemptedModels(result.attempts).length} model(s); none completed the request.`
+        : `All keys exhausted for model "${requestedModelLabel}". Tried ${result.attempts.length} connection(s).`,
+      type: req.body?.modelSource === "system" ? "system_fallback_exhausted" : "no_available_keys",
+      attemptedModels: getAttemptedModels(result.attempts),
+      failures: result.attempts.map((attempt) => ({
+        model: attempt.modelUsed,
+        provider: attempt.provider,
+        connection: attempt.connectionName,
+        status: attempt.status,
+        httpStatus: attempt.httpStatus,
+        reason: attempt.errorMessage,
+      })),
       attempts: result.attempts
     },
     _debug: {
@@ -994,13 +1350,14 @@ app.get("/api/admin/users/:id", async (req: Request, res: Response) => {
 app.patch("/api/admin/users/:id", async (req: Request, res: Response) => {
   if (!(await requireAdmin(req, res))) return;
   try {
-    const { isBanned, role, name } = req.body;
+    const { isBanned, role, name, credits } = req.body;
     const updated = await prisma.user.update({
       where: { id: req.params.id as string },
       data: {
         ...(typeof isBanned === "boolean" ? { isBanned } : {}),
         ...(role ? { role } : {}),
         ...(name  ? { name  } : {}),
+        ...(typeof credits === "number" && credits >= 0 ? { credits } : {}),
       },
     });
     res.json({ success: true, user: updated });

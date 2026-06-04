@@ -26,6 +26,7 @@ export type User = {
   id?: string;
   name?: string;
   email?: string;
+  credits?: number;
   persona?: UserPersona;
   role?: string;       // "user" | "admin"
   isBanned?: boolean;
@@ -51,24 +52,40 @@ export function WorkspaceProvider({
   initialUser?: User;
   initialWorkspaces?: Workspace[];
 }) {
-  const [workspaces] = useState<Workspace[]>(initialWorkspaces || []);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>(initialWorkspaces || []);
+  const [user, setUser] = useState<User | null>(initialUser || {
+    name: "User",
+    email: "user@tinobot.local",
+    persona: "individual",
+  });
+
+  const refreshUser = async () => {
+    const [userResponse, workspacesResponse] = await Promise.all([
+      fetch("/api/auth/user/me", { credentials: "include", cache: "no-store" }),
+      fetch("/api/auth/user/workspaces", { credentials: "include", cache: "no-store" }),
+    ]);
+    if (userResponse.ok) {
+      const data = await userResponse.json();
+      setUser(data.user || null);
+    }
+    if (workspacesResponse.ok) {
+      const data = await workspacesResponse.json();
+      setWorkspaces(data.workspaces || []);
+    }
+  };
 
   const value = useMemo<WorkspaceContextValue>(() => {
     const activeWorkspace = workspaces[0] ?? null;
 
     return {
       isLoading: false,
-      user: initialUser || {
-        name: "User",
-        email: "user@tinobot.local",
-        persona: "individual",
-      },
+      user,
       activeWorkspace,
-      refreshAll: async () => {},
-      refreshWorkspaces: async () => {},
+      refreshAll: refreshUser,
+      refreshWorkspaces: refreshUser,
       applyOptimisticUpdate: () => {},
     };
-  }, [workspaces, initialUser]);
+  }, [workspaces, user]);
 
   return (
     <WorkspaceContext.Provider value={value}>

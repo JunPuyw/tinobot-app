@@ -8,12 +8,25 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
-if (!global.prisma || !global.prisma.modelCombo || !global.prisma.pricingPackage) {
+function isCurrentClient(client: PrismaClient | undefined) {
+  const currentClient = client as any;
+  return !!currentClient &&
+    !!currentClient.modelCombo &&
+    !!currentClient.pricingPackage &&
+    !!currentClient.gatewaySetting &&
+    !!currentClient.platformUsage &&
+    !!currentClient.clientDailyUsage;
+}
+
+export function getPrisma() {
+  if (isCurrentClient(global.prisma)) return global.prisma as PrismaClient;
+
   void global.prisma?.$disconnect();
   const adapter = new PrismaLibSql({
     url: process.env.DATABASE_URL || "file:./dev.db",
   });
   global.prisma = new PrismaClient({ adapter });
+  return global.prisma;
 }
 
-export default global.prisma as PrismaClient;
+export default getPrisma();

@@ -18,12 +18,51 @@ model User {
   googleId  String?  @unique
   role      String   @default("user")   // "user" | "admin"
   isBanned  Boolean  @default(false)
+  credits   Float    @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
   apiKeys     ApiKey[]
   connections ProviderConnection[]
   combos      ModelCombo[]
+  platformUsages PlatformUsage[]
+}
+
+model ClientDailyUsage {
+  id         String   @id @default(cuid())
+  clientId   String   @map("client_id")
+  logDate    String   @map("log_date")
+  tokensUsed Int      @default(0) @map("tokens_used")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([clientId, logDate])
+  @@map("client_daily_usage")
+}
+
+model GatewaySetting {
+  id                    String   @id @default("default")
+  platformMarkupPercent Float    @default(0)
+  vndUsdRate            Float    @default(25000)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model PlatformUsage {
+  id             String   @id @default(cuid())
+  userId         String
+  model          String
+  pricingMode    String
+  promptTokens   Int      @default(0)
+  completionTokens Int    @default(0)
+  baseCredits    Float
+  markupPercent  Float
+  chargedCredits Float
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model PricingPackage {

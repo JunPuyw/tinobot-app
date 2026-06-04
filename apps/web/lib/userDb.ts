@@ -1,25 +1,22 @@
+import prisma from "@/lib/prisma";
+
 export async function getWorkspacesByUser(userId: string) {
-  // Mock workspaces for now.
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { credits: true },
+  });
+  if (!user) return [];
+
   return [
     {
-      id: "ws-1",
+      id: `user-${userId}`,
       name: "Personal",
       type: "personal",
       role: "owner",
-      credits: 12.5,
-      budgetLimitUSD: 50,
-      usedUSD: 7.25,
-      reservedUSD: 0
-    },
-    {
-      id: "ws-2",
-      name: "Team",
-      type: "team",
-      role: "admin",
-      credits: 120,
-      budgetLimitUSD: 500,
-      usedUSD: 138.4,
-      reservedUSD: 10
+      credits: user.credits,
+      budgetLimitUSD: 0,
+      usedUSD: 0,
+      reservedUSD: 0,
     }
   ];
 }

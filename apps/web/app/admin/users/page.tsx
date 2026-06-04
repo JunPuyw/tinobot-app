@@ -15,6 +15,7 @@ type User = {
   email: string;
   role: string;
   isBanned: boolean;
+  credits: number;
   createdAt: string;
   _count: { apiKeys: number; connections: number };
 };
@@ -39,6 +40,7 @@ function UserDrawer({
     fetcher
   );
   const u = data?.user;
+  const [credits, setCredits] = useState("");
 
   async function revokeKey(keyId: string) {
     if (!confirm("Revoke this API key permanently?")) return;
@@ -68,6 +70,20 @@ function UserDrawer({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role }),
     });
+    mutate();
+    onMutate();
+  }
+
+  async function updateCredits() {
+    const value = Number(credits);
+    if (!Number.isFinite(value) || value < 0) return;
+    await fetch(`/api/admin/users/${userId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credits: value }),
+    });
+    setCredits("");
     mutate();
     onMutate();
   }
@@ -103,7 +119,16 @@ function UserDrawer({
                 <InfoItem label="Status" value={u.isBanned ? "⛔ Banned" : "✅ Active"} />
                 <InfoItem label="API Keys" value={String(u._count.apiKeys)} />
                 <InfoItem label="Connections" value={String(u._count.connections)} />
+                <InfoItem label="Credits" value={u.credits.toFixed(6)} />
                 <InfoItem label="Joined" value={new Date(u.createdAt).toLocaleDateString()} className="col-span-2" />
+              </div>
+
+              <div className="rounded-xl border border-border bg-bg p-4">
+                <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Set user credits</p>
+                <div className="mt-3 flex gap-2">
+                  <input value={credits} onChange={(event) => setCredits(event.target.value)} type="number" min="0" step="0.000001" placeholder={String(u.credits)} className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 text-sm" />
+                  <button onClick={updateCredits} className="rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground">Update</button>
+                </div>
               </div>
 
               {/* Actions */}

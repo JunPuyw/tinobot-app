@@ -1,10 +1,15 @@
 export const runtime = "nodejs";
 
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { routeRequest, type Connection } from "@/lib/router";
-import { getWorkspacesByUser } from "@/lib/userDb";
+import { PROVIDER_MODELS } from "@/lib/aimodel";
 import { fetchPlatformUpstream, PlatformUpstreamConfigurationError } from "@/lib/platformUpstreams";
+import { chargePlatformUsage } from "@/lib/platformCredits";
+import { logPlatformFlow, logPlatformFlowError } from "@/lib/platformFlowLog";
+
+const PLATFORM_TIMEOUT_MS = 30_000;
 
 function getBearerToken(headerValue: string | null): string | null {
   if (!headerValue) return null;
@@ -19,6 +24,46 @@ function parseComboModels(models: string) {
   } catch {
     return [];
   }
+}
+
+const SYSTEM_FALLBACK_MODELS: Record<string, string> = {
+  openai: "gpt-4o-mini",
+  gemini: "gemini-2.5-flash",
+  google: "gemini-2.5-flash",
+  deepseek: "deepseek-chat",
+  groq: "llama-3.3-70b-versatile",
+  xai: "grok-4-fast-reasoning",
+  mistral: "mistral-large-latest",
+  glm: "glm-4.7",
+  qwen: "qwen3-coder-flash",
+  iflow: "qwen3-coder-plus",
+};
+
+function getSystemFallbackModel(provider: string) {
+  const configuredModel = SYSTEM_FALLBACK_MODELS[provider];
+  if (configuredModel) return `${provider}/${configuredModel}`;
+
+  const providerModels = (PROVIDER_MODELS as Record<string, Array<{ id: string; type?: string }>>)[provider] || [];
+  const textModel = providerModels.find((entry) => !entry.type || entry.type === "llm");
+  return textModel ? `${provider}/${textModel.id}` : null;
+}
+
+function buildSystemModelsToTry(requestedModel: string, connections: Connection[]) {
+  const requestedProvider = requestedModel.split("/")[0];
+  const models = [requestedModel];
+  const providers = [...new Set(connections.map((connection) => connection.provider))];
+
+  for (const provider of providers) {
+    if (provider === requestedProvider) continue;
+    const fallbackModel = getSystemFallbackModel(provider);
+    if (fallbackModel) models.push(fallbackModel);
+  }
+
+  return [...new Set(models)];
+}
+
+function getAttemptedModels(attempts: Array<{ modelUsed: string }>) {
+  return [...new Set(attempts.map((attempt) => attempt.modelUsed))];
 }
 
 async function getUserFromRequest(req: NextRequest, apiKey: string | null) {
@@ -43,20 +88,47 @@ async function getUserFromRequest(req: NextRequest, apiKey: string | null) {
 
 async function forwardPlatformRequest(
   body: Record<string, any>,
-  workspace: { id: string; name: string; credits?: number },
+  userId: string,
+  flowId: string,
 ) {
   const { modelSource: _modelSource, provider: _provider, workspaceId: _workspaceId, ...upstreamBody } = body;
+  const rawModel = typeof body.model === "string" ? body.model.trim() : "";
+  const provider = typeof body.provider === "string" ? body.provider.trim() : "";
+  const upstreamModel = provider && !rawModel.startsWith(`${provider}/`)
+    ? `${provider}/${rawModel}`
+    : rawModel;
+  upstreamBody.model = upstreamModel;
 
-  const upstreamResponse = await fetchPlatformUpstream("chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(upstreamBody),
+  const upstreamStartedAt = Date.now();
+  logPlatformFlow(flowId, "upstream.chat.start", {
+    model: upstreamBody.model,
   });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PLATFORM_TIMEOUT_MS);
+  let upstreamResponse: Response;
+
+  try {
+    upstreamResponse = await fetchPlatformUpstream("chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(upstreamBody),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const contentType = upstreamResponse.headers.get("content-type") || "application/json";
   const rawBody = await upstreamResponse.text();
+  logPlatformFlow(flowId, "upstream.chat.complete", {
+    model: upstreamBody.model,
+    status: upstreamResponse.status,
+    contentType,
+    durationMs: Date.now() - upstreamStartedAt,
+  });
 
   if (!rawBody) {
     return new NextResponse(null, {
@@ -73,6 +145,9 @@ async function forwardPlatformRequest(
   }
 
   const payload = JSON.parse(rawBody);
+  const charge = upstreamResponse.ok
+    ? await chargePlatformUsage(userId, String(upstreamBody.model || ""), payload, flowId)
+    : null;
   const mergedPayload =
     payload && typeof payload === "object"
       ? {
@@ -80,9 +155,7 @@ async function forwardPlatformRequest(
           _gateway: {
             ...(payload._gateway || {}),
             mode: "platform",
-            workspaceId: workspace.id,
-            workspaceName: workspace.name,
-            creditsRemaining: workspace.credits || 0,
+            ...(charge || {}),
           },
         }
       : payload;
@@ -106,11 +179,8 @@ export async function POST(
   const model = typeof body?.model === "string" ? body.model.trim() : "";
   const messages = Array.isArray(body?.messages) ? body.messages : null;
   const modelSource = typeof body?.modelSource === "string" ? body.modelSource.trim().toLowerCase() : "";
-  const workspaceId =
-    req.headers.get("x-workspace-id") ||
-    (typeof body?.workspaceId === "string" ? body.workspaceId : "") ||
-    "";
-
+  const flowId = req.headers.get("x-request-id") || randomUUID();
+  const requestStartedAt = Date.now();
   if (!model || !messages) {
     return NextResponse.json(
       { error: { message: "Request must include model and messages" } },
@@ -135,32 +205,58 @@ export async function POST(
   }
 
   if (modelSource === "platform") {
-    const workspaces = await getWorkspacesByUser(authContext.userId);
-    const activeWorkspace =
-      workspaces.find((workspace) => workspace.id === workspaceId) ||
-      workspaces[0] ||
-      null;
-
-    if (!activeWorkspace) {
+    logPlatformFlow(flowId, "request.received", {
+      path,
+      model,
+      messageCount: messages.length,
+      stream: body?.stream === true,
+      userId: authContext.userId,
+      creditsBefore: authContext.user.credits,
+    });
+    if (body?.stream === true) {
+      logPlatformFlow(flowId, "request.rejected", {
+        model,
+        reason: "Platform billing currently requires stream=false",
+      });
       return NextResponse.json(
-        { error: { message: "Workspace not found" } },
-        { status: 404 },
+        { error: { message: "Platform billing currently requires stream=false" } },
+        { status: 400 },
       );
     }
-
-    if ((activeWorkspace.credits || 0) <= 0) {
+    if (Number(authContext.user.credits || 0) <= 0) {
+      logPlatformFlow(flowId, "request.rejected", {
+        model,
+        reason: "User has insufficient credits",
+      });
       return NextResponse.json(
-        { error: { message: "Workspace het credits" } },
+        { error: { message: "User has insufficient credits" } },
         { status: 402 },
       );
     }
 
     try {
-      return await forwardPlatformRequest(body || {}, activeWorkspace);
+      const response = await forwardPlatformRequest(body || {}, authContext.userId, flowId);
+      logPlatformFlow(flowId, "request.complete", {
+        model,
+        status: response.status,
+        durationMs: Date.now() - requestStartedAt,
+      });
+      return response;
     } catch (error: any) {
+      logPlatformFlowError(flowId, "request.failed", {
+        model,
+        message: error?.message || "Platform upstream request failed",
+        durationMs: Date.now() - requestStartedAt,
+      });
       return NextResponse.json(
-        { error: { message: error?.message || "Platform upstream request failed" } },
-        { status: error instanceof PlatformUpstreamConfigurationError ? 500 : 502 },
+        { error: { message: error?.name === "AbortError" ? `Platform upstream timeout after ${PLATFORM_TIMEOUT_MS}ms` : error?.message || "Platform upstream request failed" } },
+        {
+          status: error?.name === "AbortError"
+            ? 504
+            : error?.message === "User has insufficient credits"
+            ? 402
+            : error instanceof PlatformUpstreamConfigurationError ? 500 : 502,
+        },
       );
     }
   }
@@ -194,7 +290,11 @@ export async function POST(
     where: { userId_name: { userId: authContext.userId, name: model } },
   });
   const comboModels = combo ? parseComboModels(combo.models) : [];
-  const modelsToTry = comboModels.length > 0 ? comboModels : [model];
+  const modelsToTry = comboModels.length > 0
+    ? comboModels
+    : modelSource === "system"
+      ? buildSystemModelsToTry(model, routerConnections)
+      : [model];
   let routeResult = await routeRequest(routerConnections, modelsToTry[0]!, messages);
 
   for (const fallbackModel of modelsToTry.slice(1)) {
@@ -221,10 +321,24 @@ export async function POST(
   });
 
   if (!routeResult.success || !routeResult.response) {
+    const attemptedModels = getAttemptedModels(routeResult.attempts);
+    const exhaustedSystemFallback = modelSource === "system";
     return NextResponse.json(
       {
         error: {
-          message: "No available provider connection could complete the request",
+          message: exhaustedSystemFallback
+            ? `All system fallback models exhausted. Tried ${attemptedModels.length} model(s); none completed the request.`
+            : "No available provider connection could complete the request",
+          type: exhaustedSystemFallback ? "system_fallback_exhausted" : "no_available_keys",
+          attemptedModels,
+          failures: routeResult.attempts.map((attempt) => ({
+            model: attempt.modelUsed,
+            provider: attempt.provider,
+            connection: attempt.connectionName,
+            status: attempt.status,
+            httpStatus: attempt.httpStatus,
+            reason: attempt.errorMessage,
+          })),
           attempts: routeResult.attempts,
         },
       },
@@ -243,6 +357,7 @@ export async function POST(
       totalDurationMs: routeResult.totalDurationMs,
       rotatedKey: routeResult.rotatedKey,
       rotatedProvider: routeResult.rotatedProvider,
+      attemptedModels: getAttemptedModels(routeResult.attempts),
     },
   };
 

@@ -80,6 +80,12 @@ type PaymentMethod = "polar" | "sepay";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const fmtUSD = (n: number) => "$" + (n || 0).toFixed(2);
+const fmtCredits = (n: number) =>
+  "$" +
+  new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  }).format(n || 0);
 const fmtPct = (used: number, limit: number) =>
   limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
 
@@ -148,7 +154,7 @@ function CreditOverview({
             <span className="material-symbols-outlined text-[18px]">payments</span>
             <span className="text-[10px] font-bold uppercase tracking-widest">System Credits</span>
           </div>
-          <div className="text-2xl font-bold text-text-main">{fmtUSD(credits)}</div>
+          <div className="text-2xl font-bold text-text-main">{fmtCredits(credits)}</div>
           <p className="text-[10px] text-text-muted">For system models & provider API</p>
         </div>
 
@@ -231,7 +237,7 @@ function StatPair({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function BillingPage() {
-  const { activeWorkspace, isLoading: isWsLoading, refreshWorkspaces } = useWorkspace();
+  const { activeWorkspace, user, isLoading: isWsLoading, refreshWorkspaces } = useWorkspace();
   const searchParams = useSearchParams();
 
   const [packages, setPackages] = useState<any[]>([]);
@@ -404,6 +410,7 @@ export default function BillingPage() {
   const usedUSD = activeWorkspace?.usedUSD ?? 0;
   const reservedUSD = activeWorkspace?.reservedUSD ?? 0;
   const available = Math.max(0, budgetLimit - usedUSD - reservedUSD);
+  const systemCredits = user?.credits ?? 0;
 
   const calculatedCredits = customAmount
     ? (paymentMethod === "sepay"
@@ -445,7 +452,7 @@ export default function BillingPage() {
             <span className="material-symbols-outlined text-primary">payments</span>
             <div>
               <div className="text-[10px] text-text-muted uppercase font-bold tracking-widest">Total Credits</div>
-              <div className="text-xl font-bold text-primary tabular-nums">{fmtUSD(activeWorkspace?.credits || 0)}</div>
+              <div className="text-xl font-bold text-primary tabular-nums">{fmtCredits(systemCredits)}</div>
             </div>
           </div>
           <div className="flex items-center gap-3 px-5 py-3 rounded-2xl border border-border bg-surface/50">
@@ -487,7 +494,7 @@ export default function BillingPage() {
         budgetLimit={budgetLimit}
         usedUSD={usedUSD}
         reservedUSD={reservedUSD}
-        credits={activeWorkspace?.credits || 0}
+        credits={systemCredits}
       />
 
       {/* SePay QR Modal */}
@@ -729,7 +736,7 @@ export default function BillingPage() {
                       </Badge>
                       {order.creditsEarned != null && order.creditsEarned > 0 && (
                         <div className="text-[10px] font-bold text-emerald-500">
-                          +{fmtUSD(order.creditsEarned)}
+                          +{fmtCredits(order.creditsEarned)}
                         </div>
                       )}
                     </div>

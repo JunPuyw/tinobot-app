@@ -73,6 +73,7 @@ const fmt = (n: number) => {
 };
 
 const fmtCost = (n: number) => "$" + (n || 0).toFixed(2);
+const fmtCredits = (n: number) => (n || 0).toFixed(6).replace(/\.?0+$/, "") + " credits";
 
 type UsageModelItem = {
   rawModel: string;
@@ -92,6 +93,19 @@ type UsageStats = {
   byModel: Record<string, UsageModelItem>;
 };
 
+type UsageHistoryItem = {
+  id: string;
+  model: string;
+  pricingMode: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  baseCredits: number;
+  markupPercent: number;
+  chargedCredits: number;
+  createdAt: string;
+};
+
 export default function UserUsagePage() {
   const { activeWorkspace } = useWorkspace();
   const [period, setPeriod] = useState("7d");
@@ -102,6 +116,9 @@ export default function UserUsagePage() {
 
   const { data: chartData, isLoading: chartLoading, isValidating: chartValidating } =
     useWorkspaceSWR<any[]>(`/api/auth/user/usage/chart?period=${period}`);
+
+  const { data: historyData, isLoading: historyLoading } =
+    useWorkspaceSWR<{ items: UsageHistoryItem[] }>(`/api/auth/user/usage/history?period=${period}`);
 
   const isLoading = statsLoading || chartLoading;
   const isFetching = (statsValidating || chartValidating) && !isLoading;
@@ -151,15 +168,15 @@ export default function UserUsagePage() {
           <>
             <StatCard label="Total Requests" value={fmt(stats?.totalRequests || 0)} icon="api" color="blue" />
             <StatCard
-              label="Quota Usage (BYOK)"
-              value={fmtCost(stats?.totalCost || 0)}
+              label="Platform Credits Used"
+              value={fmtCredits(stats?.totalCost || 0)}
               icon="account_balance_wallet"
               color="amber"
-              subValue={`Limit: ${fmtCost(activeWorkspace?.budgetLimitUSD || 10)}/mo`}
+              subValue={`${fmt(stats?.totalRequests || 0)} API calls`}
             />
             <StatCard 
               label="System Credits" 
-              value={fmtCost(activeWorkspace?.credits || 0)} 
+              value={fmtCredits(activeWorkspace?.credits || 0)} 
               icon="payments" 
               color="emerald" 
               subValue="Prepaid balance" 
@@ -189,7 +206,7 @@ export default function UserUsagePage() {
               className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "cost" ? "bg-primary text-white shadow-md shadow-primary/20" : "text-text-muted hover:text-text-main hover:bg-surface"
                 }`}
             >
-              Cost
+              Credits
             </button>
           </div>
         </div>
@@ -209,7 +226,7 @@ export default function UserUsagePage() {
               <p className="text-sm font-medium italic">No activity detected yet</p>
             </div>
           ) : (
-            <UsageChart chartData={chartData} viewMode={viewMode} fmt={fmt} fmtCost={fmtCost} />
+            <UsageChart chartData={chartData} viewMode={viewMode} fmt={fmt} fmtCost={fmtCredits} />
           )}
         </div>
       </Card>
@@ -224,7 +241,7 @@ export default function UserUsagePage() {
                 <th className="px-6 py-5 font-bold text-text-muted uppercase text-[11px] tracking-widest">Source Node</th>
                 <th className="px-6 py-5 font-bold text-text-muted uppercase text-[11px] tracking-widest text-right">Calls</th>
                 <th className="px-6 py-5 font-bold text-text-muted uppercase text-[11px] tracking-widest text-right">Volume</th>
-                <th className="px-6 py-5 font-bold text-text-muted uppercase text-[11px] tracking-widest text-right">Cost</th>
+                <th className="px-6 py-5 font-bold text-text-muted uppercase text-[11px] tracking-widest text-right">Credits</th>
                 <th className="px-6 py-5 font-bold text-text-muted uppercase text-[11px] tracking-widest text-right">Last Sync</th>
               </tr>
             </thead>
@@ -268,10 +285,75 @@ export default function UserUsagePage() {
                       </div>
                     </td>
                     <td className="px-6 py-5 text-right text-amber-600 dark:text-amber-500 font-bold tabular-nums">
-                      {fmtCost(item.cost)}
+                      {fmtCredits(item.cost)}
                     </td>
                     <td className="px-6 py-5 text-right text-text-muted text-[11px] font-medium whitespace-nowrap">
                       {item.lastUsed ? new Date(item.lastUsed).toLocaleString() : "Never"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card title="Credit Charge History" padding="none" className="border-border/50 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left border-collapse">
+            <thead>
+              <tr className="border-b border-border bg-surface/30">
+                <th className="px-6 py-5 font-bold text-text-muted uppercase text-[11px] tracking-widest">Time</th>
+                <th className="px-6 py-5 font-bold text-text-muted uppercase text-[11px] tracking-widest">Model</th>
+                <th className="px-6 py-5 font-bold text-text-muted uppercase text-[11px] tracking-widest">Pricing</th>
+                <th className="px-6 py-5 font-bold text-text-muted uppercase text-[11px] tracking-widest text-right">Tokens</th>
+                <th className="px-6 py-5 font-bold text-text-muted uppercase text-[11px] tracking-widest text-right">Base</th>
+                <th className="px-6 py-5 font-bold text-text-muted uppercase text-[11px] tracking-widest text-right">Markup</th>
+                <th className="px-6 py-5 font-bold text-text-muted uppercase text-[11px] tracking-widest text-right">Charged</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {historyLoading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i}>
+                    <td className="px-6 py-5"><Skeleton className="h-4 w-32" /></td>
+                    <td className="px-6 py-5"><Skeleton className="h-4 w-44" /></td>
+                    <td className="px-6 py-5"><Skeleton className="h-5 w-20 rounded-full" /></td>
+                    <td className="px-6 py-5 text-right"><Skeleton className="h-4 w-20 ml-auto" /></td>
+                    <td className="px-6 py-5 text-right"><Skeleton className="h-4 w-20 ml-auto" /></td>
+                    <td className="px-6 py-5 text-right"><Skeleton className="h-4 w-16 ml-auto" /></td>
+                    <td className="px-6 py-5 text-right"><Skeleton className="h-4 w-24 ml-auto" /></td>
+                  </tr>
+                ))
+              ) : (historyData?.items || []).length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-16 text-center text-text-muted">
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="material-symbols-outlined text-4xl opacity-10">receipt_long</span>
+                      <p className="italic font-medium">No credit charges found for the selected period.</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                (historyData?.items || []).map((item) => (
+                  <tr key={item.id} className="hover:bg-primary/[0.02] transition-colors">
+                    <td className="px-6 py-5 text-text-muted text-[11px] font-medium whitespace-nowrap">
+                      {new Date(item.createdAt).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-5 font-bold text-text-main">{item.model}</td>
+                    <td className="px-6 py-5">
+                      <Badge variant="info" size="sm" className="font-bold uppercase">{item.pricingMode}</Badge>
+                    </td>
+                    <td className="px-6 py-5 text-right tabular-nums">
+                      <div className="flex flex-col items-end">
+                        <span className="font-bold text-text-main">{fmt(item.totalTokens)}</span>
+                        <span className="text-[10px] text-text-muted opacity-70">{fmt(item.promptTokens)} i / {fmt(item.completionTokens)} o</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5 text-right tabular-nums">{fmtCredits(item.baseCredits)}</td>
+                    <td className="px-6 py-5 text-right tabular-nums">{item.markupPercent}%</td>
+                    <td className="px-6 py-5 text-right text-amber-600 dark:text-amber-500 font-bold tabular-nums">
+                      {fmtCredits(item.chargedCredits)}
                     </td>
                   </tr>
                 ))

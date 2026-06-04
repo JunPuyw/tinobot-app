@@ -81,6 +81,20 @@ function buildLocalModelCatalog() {
   return { models, data };
 }
 
+function getUsageStartDate(period: string) {
+  const now = Date.now();
+  const hours = period === "24h" ? 24 : period === "30d" ? 24 * 30 : 24 * 7;
+  return new Date(now - hours * 60 * 60 * 1000);
+}
+
+function formatUsageDay(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug?: string[] }> }) {
   const resolvedParams = await params;
   const path = "/" + (resolvedParams.slug?.join("/") || "");
@@ -223,9 +237,104 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   if (path === "/provider-nodes") return NextResponse.json({ nodes: [] });
   if (path === "/proxy-pools") return NextResponse.json({ pools: [] });
   if (path === "/settings") return NextResponse.json({ settings: {} });
-  if (path === "/auth/user/usage/stats") return NextResponse.json({ totalRequests: 0, totalCost: 0, totalPromptTokens: 0, totalCompletionTokens: 0, byModel: {} });
-  if (path === "/auth/user/usage/chart") return NextResponse.json([]);
-  if (path === "/auth/user/workspaces") return NextResponse.json({ workspaces: [{ id: "ws-main", name: "Main Workspace", role: "owner", credits: 100.0, budgetLimitUSD: 200, usedUSD: 25.5, reservedUSD: 0 }] });
+  if (path === "/auth/user/usage/stats") {
+    const user = await getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const startDate = getUsageStartDate(searchParams.get("period") || "7d");
+    const usages = await prisma.platformUsage.findMany({
+      where: { userId: user.id, createdAt: { gte: startDate } },
+      orderBy: { createdAt: "desc" },
+    });
+    const byModel: Record<string, any> = {};
+
+    for (const usage of usages) {
+      const provider = usage.model.includes("/") ? usage.model.split("/")[0] : "platform";
+      const item = byModel[usage.model] || {
+        rawModel: usage.model,
+        provider,
+        requests: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        cost: 0,
+        lastUsed: usage.createdAt.toISOString(),
+      };
+      item.requests += 1;
+      item.promptTokens += usage.promptTokens;
+      item.completionTokens += usage.completionTokens;
+      item.cost += usage.chargedCredits;
+      if (usage.createdAt > new Date(item.lastUsed)) item.lastUsed = usage.createdAt.toISOString();
+      byModel[usage.model] = item;
+    }
+
+    return NextResponse.json({
+      totalRequests: usages.length,
+      totalCost: usages.reduce((sum, usage) => sum + usage.chargedCredits, 0),
+      totalPromptTokens: usages.reduce((sum, usage) => sum + usage.promptTokens, 0),
+      totalCompletionTokens: usages.reduce((sum, usage) => sum + usage.completionTokens, 0),
+      byModel,
+    });
+  }
+  if (path === "/auth/user/usage/chart") {
+    const user = await getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const startDate = getUsageStartDate(searchParams.get("period") || "7d");
+    const usages = await prisma.platformUsage.findMany({
+      where: { userId: user.id, createdAt: { gte: startDate } },
+      orderBy: { createdAt: "asc" },
+    });
+    const byDay = new Map<string, { label: string; tokens: number; cost: number }>();
+
+    for (const usage of usages) {
+      const label = formatUsageDay(usage.createdAt);
+      const item = byDay.get(label) || { label, tokens: 0, cost: 0 };
+      item.tokens += usage.promptTokens + usage.completionTokens;
+      item.cost += usage.chargedCredits;
+      byDay.set(label, item);
+    }
+
+    return NextResponse.json([...byDay.values()]);
+  }
+  if (path === "/auth/user/usage/history") {
+    const user = await getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const startDate = getUsageStartDate(searchParams.get("period") || "7d");
+    const usages = await prisma.platformUsage.findMany({
+      where: { userId: user.id, createdAt: { gte: startDate } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+
+    return NextResponse.json({
+      items: usages.map((usage) => ({
+        id: usage.id,
+        model: usage.model,
+        pricingMode: usage.pricingMode,
+        promptTokens: usage.promptTokens,
+        completionTokens: usage.completionTokens,
+        totalTokens: usage.promptTokens + usage.completionTokens,
+        baseCredits: usage.baseCredits,
+        markupPercent: usage.markupPercent,
+        chargedCredits: usage.chargedCredits,
+        createdAt: usage.createdAt.toISOString(),
+      })),
+    });
+  }
+  if (path === "/auth/user/workspaces") {
+    const user = await getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({
+      workspaces: [{
+        id: `user-${user.id}`,
+        name: "Personal",
+        type: "personal",
+        role: "owner",
+        credits: user.credits,
+        budgetLimitUSD: 0,
+        usedUSD: 0,
+        reservedUSD: 0,
+      }],
+    });
+  }
 
   // --- Router status ---
   if (path === "/router/log") {
@@ -469,13 +578,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
     const userMatch = path.match(/^\/admin\/users\/([^/]+)$/);
     if (userMatch) {
       const id = userMatch[1];
-      const { isBanned, role, name } = body;
+      const { isBanned, role, name, credits } = body;
       const updated = await prisma.user.update({
         where: { id },
         data: {
           ...(typeof isBanned === "boolean" ? { isBanned } : {}),
           ...(role ? { role } : {}),
           ...(name ? { name } : {}),
+          ...(typeof credits === "number" && credits >= 0 ? { credits } : {}),
         },
       });
       return NextResponse.json({ success: true, user: updated });
