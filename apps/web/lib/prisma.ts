@@ -1,7 +1,7 @@
 // Prisma client singleton for Next.js
 // Ensures a single instance across dev hot reloads.
 import { PrismaClient } from "@prisma/client";
-import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -22,9 +22,10 @@ export function getPrisma() {
   if (isCurrentClient(global.prisma)) return global.prisma as PrismaClient;
 
   void global.prisma?.$disconnect();
-  const adapter = new PrismaLibSql({
-    url: process.env.DATABASE_URL || "file:./dev.db",
-  });
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is required for Prisma");
+  }
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
   global.prisma = new PrismaClient({ adapter });
   return global.prisma;
 }

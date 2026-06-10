@@ -48,15 +48,15 @@ const Spinner = ({ size = "md", className }: any) => (
 const Modal = ({ isOpen, onClose, title, children }: any) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-card rounded-2xl w-full max-w-lg shadow-2xl border border-border overflow-hidden animate-in zoom-in-95">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in">
+      <div className="max-h-[92dvh] w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-card shadow-2xl animate-in zoom-in-95">
         <div className="flex justify-between items-center p-4 border-b border-border">
           <h2 className="text-lg font-bold">{title}</h2>
           <button onClick={onClose} className="p-1 rounded-md hover:bg-surface text-text-muted transition-colors">
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
-        <div className="p-4">{children}</div>
+        <div className="app-scrollbar max-h-[calc(92dvh-64px)] overflow-y-auto p-4">{children}</div>
       </div>
     </div>
   );
@@ -422,7 +422,7 @@ export default function BillingPage() {
   if (isWsLoading) return <CardSkeleton />;
 
   return (
-    <div className="flex flex-col gap-8 animate-in fade-in duration-500 pb-20">
+    <div className="flex min-w-0 flex-col gap-6 pb-20 animate-in fade-in duration-500 sm:gap-8">
       {/* Payment success alert */}
       {showSuccessMsg && (
         <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-4 animate-in slide-in-from-top-4">
@@ -439,23 +439,23 @@ export default function BillingPage() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
+      <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold tracking-tight text-text-main">Billing &amp; Credits</h1>
           <p className="text-text-muted mt-2">
             Manage your credit balance for{" "}
             <b>{activeWorkspace?.name ?? "..."}</b>
           </p>
         </div>
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3 px-5 py-3 rounded-2xl border border-primary/20 bg-primary/5">
+        <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 md:w-auto">
+          <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-5 py-3">
             <span className="material-symbols-outlined text-primary">payments</span>
             <div>
               <div className="text-[10px] text-text-muted uppercase font-bold tracking-widest">Total Credits</div>
               <div className="text-xl font-bold text-primary tabular-nums">{fmtCredits(systemCredits)}</div>
             </div>
           </div>
-          <div className="flex items-center gap-3 px-5 py-3 rounded-2xl border border-border bg-surface/50">
+          <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-surface/50 px-5 py-3">
             <span className="material-symbols-outlined text-text-muted">schedule</span>
             <div>
               <div className="text-[10px] text-text-muted uppercase font-bold tracking-widest">Next Reset</div>
@@ -467,10 +467,10 @@ export default function BillingPage() {
 
       {/* Credit Overview Panel */}
       {/* Payment Method Selector */}
-      <div className="flex gap-4 p-1 bg-surface/50 border border-border/50 rounded-2xl w-fit">
+      <div className="grid w-full grid-cols-1 gap-2 rounded-2xl border border-border/50 bg-surface/50 p-1 sm:w-fit sm:grid-cols-2">
         <button
           onClick={() => setPaymentMethod("sepay")}
-          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${paymentMethod === "sepay"
+          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-all active:scale-[0.98] sm:px-6 ${paymentMethod === "sepay"
             ? "bg-primary text-white shadow-lg shadow-primary/20"
             : "text-text-muted hover:bg-surface"
             }`}
@@ -480,7 +480,7 @@ export default function BillingPage() {
         </button>
         <button
           onClick={() => setPaymentMethod("polar")}
-          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${paymentMethod === "polar"
+          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-all active:scale-[0.98] sm:px-6 ${paymentMethod === "polar"
             ? "bg-primary text-white shadow-lg shadow-primary/20"
             : "text-text-muted hover:bg-surface"
             }`}
@@ -547,7 +547,7 @@ export default function BillingPage() {
       </Modal>
 
       {/* Main grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
         {/* Left col: Packages & Top-up */}
         <div className="lg:col-span-2 space-y-8">
           <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
@@ -559,7 +559,7 @@ export default function BillingPage() {
             {loadingData ? (
               Array.from({ length: 4 }).map((_, i) => <CardSkeleton key={i} />)
             ) : packages.length === 0 ? (
-              <div className="col-span-2 p-10 text-center border-2 border-dashed border-border/50 rounded-2xl text-text-muted">
+              <div className="p-10 text-center border-2 border-dashed border-border/50 rounded-2xl text-text-muted sm:col-span-2">
                 <span className="material-symbols-outlined text-4xl opacity-20 mb-2 block">inventory_2</span>
                 <p className="text-sm italic">No packages available at the moment.</p>
               </div>
@@ -627,7 +627,7 @@ export default function BillingPage() {
 
           {/* Custom Amount */}
           <Card className="bg-surface/50 border-2 border-dashed border-border/50">
-            <div className="flex flex-col md:flex-row gap-6 items-end">
+            <div className="flex flex-col gap-6 md:flex-row md:items-end">
               <div className="flex-1 space-y-4">
                 <h3 className="font-bold text-text-main">
                   {paymentMethod === "sepay" ? "Custom Amount (VND)" : "Custom Amount (USD)"}
@@ -687,7 +687,7 @@ export default function BillingPage() {
                 {orders.map((order) => (
                   <div
                     key={order.id}
-                    className="p-4 bg-card rounded-2xl border border-border/50 flex justify-between items-center hover:border-primary/20 transition-colors"
+                    className="flex items-start justify-between gap-3 rounded-2xl border border-border/50 bg-card p-4 transition-colors hover:border-primary/20 sm:items-center"
                   >
                     <div className="flex flex-col gap-1 min-w-0">
                       <div className="flex items-center gap-1.5">

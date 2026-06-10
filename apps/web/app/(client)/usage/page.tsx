@@ -142,10 +142,10 @@ export default function UserUsagePage() {
   );
 
   return (
-    <div className="flex flex-col gap-8 animate-in fade-in duration-500">
+    <div className="flex min-w-0 flex-col gap-6 sm:gap-8 animate-in fade-in duration-500">
       {/* Header — always visible */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold tracking-tight text-text-main">Usage Analytics</h1>
           <p className="text-text-muted mt-2 font-medium">
             Real-time monitoring for your account activity
@@ -188,22 +188,22 @@ export default function UserUsagePage() {
 
       {/* Chart Section */}
       <Card className="p-6 relative overflow-hidden group border-border/50 shadow-sm">
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-lg font-bold flex items-center gap-3 text-text-main">
             <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg">analytics</span>
             Timeline Visualization
           </h3>
-          <div className="flex items-center gap-1 bg-surface/50 rounded-xl p-1 border border-border/50">
+          <div className="flex w-full items-center gap-1 rounded-xl border border-border/50 bg-surface/50 p-1 sm:w-auto">
             <button
               onClick={() => setViewMode("tokens")}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "tokens" ? "bg-primary text-white shadow-md shadow-primary/20" : "text-text-muted hover:text-text-main hover:bg-surface"
+              className={`flex-1 rounded-lg px-4 py-1.5 text-xs font-bold transition-all sm:flex-none ${viewMode === "tokens" ? "bg-primary text-white shadow-md shadow-primary/20" : "text-text-muted hover:text-text-main hover:bg-surface"
                 }`}
             >
               Tokens
             </button>
             <button
               onClick={() => setViewMode("cost")}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "cost" ? "bg-primary text-white shadow-md shadow-primary/20" : "text-text-muted hover:text-text-main hover:bg-surface"
+              className={`flex-1 rounded-lg px-4 py-1.5 text-xs font-bold transition-all sm:flex-none ${viewMode === "cost" ? "bg-primary text-white shadow-md shadow-primary/20" : "text-text-muted hover:text-text-main hover:bg-surface"
                 }`}
             >
               Credits
@@ -211,7 +211,7 @@ export default function UserUsagePage() {
           </div>
         </div>
 
-        <div className="h-[320px] w-full relative">
+        <div className="relative h-[280px] w-full sm:h-[320px]">
           {isFetching && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface/20 backdrop-blur-[1px] rounded-xl">
               <Spinner size="sm" className='' />

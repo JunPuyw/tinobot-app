@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import LanguageSwitcher from "@/i18n/LanguageSwitcher";
+import { useTranslation } from "@/i18n/runtime";
 
 const adminNav = [
   { name: "Overview",  href: "/admin",       icon: "admin_panel_settings" },
@@ -16,6 +18,7 @@ const adminNav = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname  = usePathname();
   const router    = useRouter();
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -54,7 +57,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
           {!collapsed && (
             <div>
-              <p className="text-sm font-bold text-text-main leading-tight">Admin CMS</p>
+              <p className="text-sm font-bold text-text-main leading-tight">{t("Admin CMS")}</p>
               <p className="text-[10px] text-error font-semibold uppercase tracking-widest">Tinobot</p>
             </div>
           )}
@@ -76,12 +79,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       ? "bg-error/10 text-error shadow-sm"
                       : "text-text-muted hover:bg-surface-hover hover:text-text-main"
                   } ${collapsed ? "justify-center px-0" : ""}`}
-                  title={collapsed ? item.name : undefined}
+                  title={collapsed ? t(item.name) : undefined}
                 >
                   <span className={`material-symbols-outlined shrink-0 ${isActive ? "text-[22px]" : "text-[20px]"}`}>
                     {item.icon}
                   </span>
-                  {!collapsed && <span className="whitespace-nowrap">{item.name}</span>}
+                  {!collapsed && <span className="whitespace-nowrap">{t(item.name)}</span>}
                 </Link>
               );
             })}
@@ -90,15 +93,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Actions */}
         <div className="p-4 border-t border-border shrink-0 flex flex-col gap-2">
+          {!collapsed && <LanguageSwitcher className="mb-1 w-full justify-center" />}
           <Link
             href="/usage"
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text-main transition-all ${
               collapsed ? "justify-center px-0" : ""
             }`}
-            title={collapsed ? "Back to App" : undefined}
+            title={collapsed ? t("Back to App") : undefined}
           >
             <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-            {!collapsed && <span>Back to App</span>}
+            {!collapsed && <span>{t("Back to App")}</span>}
           </Link>
           <button
             onClick={async () => {
@@ -112,10 +116,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-text-muted hover:bg-red-500/10 hover:text-red-500 transition-all w-full text-left ${
               collapsed ? "justify-center px-0" : ""
             }`}
-            title={collapsed ? "Logout" : undefined}
+            title={collapsed ? t("Logout") : undefined}
           >
             <span className="material-symbols-outlined text-[20px]">logout</span>
-            {!collapsed && <span>Logout</span>}
+            {!collapsed && <span>{t("Logout")}</span>}
           </button>
         </div>
       </aside>
@@ -131,13 +135,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <span className="material-symbols-outlined">menu</span>
             </button>
             <span className="text-xs font-bold text-error uppercase tracking-widest bg-error/10 px-2.5 py-1 rounded-full">
-              Admin Panel
+              {t("Admin Panel")}
             </span>
           </div>
-          <Link href="/usage" className="text-text-muted hover:text-text-main text-sm flex items-center gap-1.5 transition-colors">
-            <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-            User Portal
-          </Link>
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher compact className="hidden sm:inline-flex" />
+            <Link href="/usage" className="text-text-muted hover:text-text-main text-sm flex items-center gap-1.5 transition-colors">
+              <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+              {t("User Portal")}
+            </Link>
+          </div>
         </header>
         <div className="flex-1 p-4 sm:p-8 overflow-auto">
           {children}

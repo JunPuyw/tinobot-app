@@ -144,8 +144,8 @@ async function incrementClientDailyUsage(tx: any, clientId: string, tokensUsed: 
       client_id TEXT NOT NULL,
       log_date TEXT NOT NULL,
       tokens_used INTEGER NOT NULL DEFAULT 0,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await tx.$executeRaw`

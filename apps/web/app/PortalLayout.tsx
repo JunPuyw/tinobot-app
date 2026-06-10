@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useWorkspace } from "@/context/WorkspaceContext";
+import LanguageSwitcher from "@/i18n/LanguageSwitcher";
+import { useTranslation } from "@/i18n/runtime";
 
 const navItems = [
   { name: "Dashboard", href: "/usage", icon: "dashboard" },
@@ -18,107 +20,98 @@ const navItems = [
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user } = useWorkspace();
+  const { t } = useTranslation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Close sidebar on route change on mobile
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [pathname]);
 
   const allNavItems = [
     ...navItems,
-    ...(user?.role === "admin" ? [{ name: "Admin CMS", href: "/admin", icon: "admin_panel_settings" }] : []),
+    ...(user?.role === "admin"
+      ? [{ name: "Admin CMS", href: "/admin", icon: "admin_panel_settings" }]
+      : []),
   ];
 
-  // Derive current page title from pathname
-  const currentPage = allNavItems.find((item) => pathname === item.href || pathname.startsWith(item.href + "/"));
-  const pageTitle = currentPage?.name ?? "Portal";
+  const currentPage = allNavItems.find(
+    (item) => pathname === item.href || pathname.startsWith(item.href + "/"),
+  );
+  const pageTitle = t(currentPage?.name ?? "Portal");
   const pageIcon = currentPage?.icon ?? "grid_view";
-
   const avatarLetter = user?.name?.[0]?.toUpperCase() || "U";
 
   return (
-    <div className="flex min-h-screen bg-bg text-text-main relative">
-      {/* Mobile Overlay */}
+    <div className="relative flex min-h-[100dvh] overflow-x-hidden bg-bg text-text-main">
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40 sm:hidden backdrop-blur-sm"
+          className="fixed inset-0 z-40 bg-zinc-950/35 backdrop-blur-sm lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
-      {/* ── Sidebar ─────────────────────────────────────────────── */}
       <aside
         className={`
           fixed inset-y-0 left-0 z-50 flex flex-col
-          bg-surface border-r border-border
+          border-r border-border bg-surface/95 shadow-[18px_0_50px_-35px_rgba(36,33,29,0.35)] backdrop-blur-xl
           transform transition-[width,transform] duration-300 ease-in-out
-          sm:translate-x-0 sm:sticky sm:top-0 sm:h-screen shrink-0 overflow-x-hidden
+          lg:translate-x-0 lg:sticky lg:top-0 lg:h-[100dvh] shrink-0 overflow-x-hidden
           ${isCollapsed ? "w-[72px]" : "w-64"}
           ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        {/* Logo */}
-        <div className="flex items-center h-16 shrink-0 border-b border-border px-4 justify-between">
-          <Link
-            href="/"
-            className="flex items-center gap-3 min-w-0"
-          >
-            <div className="size-9 min-w-9 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-md shadow-primary/30">
-              <span className="material-symbols-outlined text-white text-[20px]">bolt</span>
+        <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
+            <div className="flex size-9 min-w-9 shrink-0 items-center justify-center rounded-xl bg-primary shadow-[0_10px_24px_-14px_rgba(217,120,47,0.9)]">
+              <span className="material-symbols-outlined text-[20px] text-white">bolt</span>
             </div>
             {!isCollapsed && (
-              <span className="text-[17px] font-bold tracking-tight whitespace-nowrap text-text-main">
+              <span className="whitespace-nowrap text-[17px] font-bold tracking-tight text-text-main">
                 Tinobot
               </span>
             )}
           </Link>
 
-          {/* Collapse toggle (desktop) */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden sm:flex h-7 w-7 items-center justify-center rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors focus:outline-none shrink-0"
-            title={isCollapsed ? "Expand" : "Collapse"}
+            className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-hover hover:text-text-main focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 lg:flex"
+            title={isCollapsed ? t("Expand") : t("Collapse")}
           >
             <span className="material-symbols-outlined text-[18px]">
               {isCollapsed ? "chevron_right" : "chevron_left"}
             </span>
           </button>
 
-          {/* Mobile close */}
           <button
-            className="sm:hidden text-text-muted hover:text-text-main p-1 rounded-lg focus:outline-none"
+            className="rounded-lg p-1 text-text-muted transition-colors hover:bg-surface-hover hover:text-text-main focus:outline-none lg:hidden"
             onClick={() => setIsSidebarOpen(false)}
           >
             <span className="material-symbols-outlined text-[22px]">close</span>
           </button>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 p-3 space-y-0.5">
+        <nav className="app-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden p-3">
           {allNavItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+
             return (
-              <div key={item.href} className="relative group/nav">
+              <div key={item.href} className="group/nav relative">
                 <Link
                   href={item.href}
                   className={`
-                    flex items-center rounded-xl text-sm font-medium
-                    transition-all duration-150 overflow-hidden
-                    ${isCollapsed
-                      ? "justify-center py-2.5 px-0"
-                      : "gap-3 px-3 py-2.5"
-                    }
-                    ${isActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-muted hover:bg-surface-hover hover:text-text-main"
+                    flex items-center overflow-hidden rounded-xl text-sm font-medium
+                    transition-all duration-150 active:scale-[0.98]
+                    ${isCollapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5"}
+                    ${
+                      isActive
+                        ? "bg-primary text-primary-foreground shadow-[0_12px_26px_-18px_rgba(217,120,47,0.95)]"
+                        : "text-text-muted hover:bg-surface-hover hover:text-text-main"
                     }
                   `}
                 >
-                  {/* Active left accent bar (expanded only) */}
                   {isActive && !isCollapsed && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-primary" />
+                    <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary-foreground/90" />
                   )}
                   <span
                     className={`material-symbols-outlined shrink-0 transition-all duration-150 ${
@@ -127,17 +120,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   >
                     {item.icon}
                   </span>
-                  {/* Label — hidden when collapsed */}
-                  {!isCollapsed && (
-                    <span className="whitespace-nowrap">{item.name}</span>
-                  )}
+                  {!isCollapsed && <span className="whitespace-nowrap">{t(item.name)}</span>}
                 </Link>
 
-                {/* Tooltip — visible only when collapsed */}
                 {isCollapsed && (
-                  <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-[60] opacity-0 group-hover/nav:opacity-100 transition-opacity duration-150">
-                    <div className="bg-surface border border-border text-text-main text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
-                      {item.name}
+                  <div className="pointer-events-none absolute left-full top-1/2 z-[60] ml-2 -translate-y-1/2 opacity-0 transition-opacity duration-150 group-hover/nav:opacity-100">
+                    <div className="whitespace-nowrap rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-main shadow-lg">
+                      {t(item.name)}
                     </div>
                   </div>
                 )}
@@ -146,33 +135,35 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           })}
         </nav>
 
-        {/* User / Bottom */}
-        <div className="p-3 border-t border-border shrink-0">
+        <div className="shrink-0 border-t border-border p-3">
+          {!isCollapsed && <LanguageSwitcher className="mb-3 w-full justify-center" />}
+
           <div className={`flex ${isCollapsed ? "flex-col items-center gap-3" : "items-center gap-3"} py-1`}>
-            {/* Avatar */}
-            <div className={`relative group/avatar ${isCollapsed ? "" : ""}`}>
-              <div className="size-8 min-w-8 shrink-0 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary">
+            <div className="group/avatar relative">
+              <div className="flex size-8 min-w-8 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/15 text-xs font-bold text-primary">
                 {avatarLetter}
               </div>
-              {/* Tooltip for avatar when collapsed */}
               {isCollapsed && (
-                <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 z-[60] opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-150">
-                  <div className="bg-surface border border-border rounded-lg shadow-lg px-2.5 py-2 min-w-[140px]">
-                    <p className="text-xs font-semibold text-text-main truncate">{user?.name || "User"}</p>
-                    <p className="text-[11px] text-text-muted truncate">{user?.email}</p>
+                <div className="pointer-events-none absolute left-full top-1/2 z-[60] ml-3 -translate-y-1/2 opacity-0 transition-opacity duration-150 group-hover/avatar:opacity-100">
+                  <div className="min-w-[140px] rounded-lg border border-border bg-surface px-2.5 py-2 shadow-lg">
+                    <p className="truncate text-xs font-semibold text-text-main">
+                      {user?.name || t("User")}
+                    </p>
+                    <p className="truncate text-[11px] text-text-muted">{user?.email}</p>
                   </div>
                 </div>
               )}
             </div>
 
             {!isCollapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate text-text-main">{user?.name || "User"}</p>
-                <p className="text-xs text-text-muted truncate">{user?.email}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-text-main">
+                  {user?.name || t("User")}
+                </p>
+                <p className="truncate text-xs text-text-muted">{user?.email}</p>
               </div>
             )}
 
-            {/* Logout */}
             <button
               onClick={async () => {
                 try {
@@ -182,8 +173,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   console.error("Logout failed", e);
                 }
               }}
-              className="h-7 w-7 flex items-center justify-center rounded-lg text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors focus:outline-none shrink-0"
-              title="Logout"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-red-500/10 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/20"
+              title={t("Logout")}
             >
               <span className="material-symbols-outlined text-[18px]">logout</span>
             </button>
@@ -191,40 +182,39 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         </div>
       </aside>
 
-      {/* ── Main Content ─────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <header className="h-14 border-b border-border bg-surface/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
-          {/* Left: hamburger (mobile) + page title */}
-          <div className="flex items-center gap-3">
+      <main className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-bg/85 px-4 backdrop-blur-xl sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
             <button
-              className="sm:hidden text-text-muted hover:text-text-main focus:outline-none p-1 rounded-lg hover:bg-surface-hover transition-colors"
+              className="rounded-lg p-2 text-text-muted transition-colors hover:bg-surface-hover hover:text-text-main focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 lg:hidden"
               onClick={() => setIsSidebarOpen(true)}
             >
               <span className="material-symbols-outlined text-[22px]">menu</span>
             </button>
 
-            {/* Page breadcrumb */}
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-[18px]">{pageIcon}</span>
-              <span className="text-sm font-semibold text-text-main">{pageTitle}</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="material-symbols-outlined shrink-0 rounded-lg bg-primary/10 p-1 text-[18px] text-primary">
+                {pageIcon}
+              </span>
+              <span className="truncate text-sm font-semibold text-text-main">{pageTitle}</span>
             </div>
           </div>
 
-          {/* Right: user chip */}
-          <div className="flex items-center gap-2.5">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border bg-surface-hover hover:border-primary/30 transition-colors cursor-default">
-              <div className="size-6 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-[11px] font-bold text-primary">
+          <div className="flex shrink-0 items-center gap-2.5">
+            <LanguageSwitcher compact className="hidden sm:inline-flex" />
+            <div className="hidden cursor-default items-center gap-2 rounded-xl border border-border bg-surface px-3 py-1.5 shadow-sm transition-colors hover:border-primary/30 sm:flex">
+              <div className="flex size-6 items-center justify-center rounded-full border border-primary/30 bg-primary/15 text-[11px] font-bold text-primary">
                 {avatarLetter}
               </div>
-              <span className="text-xs font-medium text-text-main max-w-[120px] truncate">{user?.name || "User"}</span>
+              <span className="max-w-[120px] truncate text-xs font-medium text-text-main">
+                {user?.name || t("User")}
+              </span>
             </div>
           </div>
         </header>
 
-        {/* Page Content */}
-        <div className="flex-1 p-4 sm:p-6 xl:p-8 overflow-auto">
-          {children}
+        <div className="app-scrollbar min-w-0 flex-1 overflow-auto px-4 py-5 sm:px-6 lg:px-8 xl:px-10">
+          <div className="mx-auto w-full max-w-[1440px]">{children}</div>
         </div>
       </main>
     </div>

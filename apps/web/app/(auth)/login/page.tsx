@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { translate, onLocaleChange } from "@/i18n/runtime";
+import LanguageSwitcher from "@/i18n/LanguageSwitcher";
 const Card = ({ children, className }: any) => (
   <div className={`rounded-2xl border bg-card shadow-sm border-border ${className || ""}`}>
     {children}
@@ -36,12 +37,6 @@ const Loading = () => (
   <div className="flex items-center justify-center p-8">
     <span className="material-symbols-outlined animate-spin text-primary text-[32px]">progress_activity</span>
   </div>
-);
-
-const LanguageSwitcher = () => (
-  <button className="px-3 py-1.5 text-xs font-bold hover:bg-surface rounded-xl transition-colors">
-    EN / VI
-  </button>
 );
 
 function LoginContent() {

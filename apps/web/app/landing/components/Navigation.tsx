@@ -2,13 +2,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-const LanguageSwitcher = ({ className }: any) => (
-  <div className={`flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-gray-400 ${className || ""}`}>
-    <span className="material-symbols-outlined text-[16px]">language</span>
-    EN / VI
-  </div>
-);
 import { translate, onLocaleChange } from "@/i18n/runtime";
+import LanguageSwitcher from "@/i18n/LanguageSwitcher";
 
 export default function Navigation() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

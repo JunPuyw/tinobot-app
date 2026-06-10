@@ -1,0 +1,12 @@
+.git
+.turbo
+node_modules
+apps/*/node_modules
+packages/*/node_modules
+apps/web/.next
+apps/web/out
+apps/*/dev.db
+*.log
+.env
+.env.*
+!.env.production.example

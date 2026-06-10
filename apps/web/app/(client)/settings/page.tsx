@@ -90,10 +90,10 @@ export default function WorkspaceSettingsPage() {
   const isOwner = activeWorkspace?.role === "owner";
 
   return (
-    <div className="w-full max-w-5xl mx-auto flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:gap-8">
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold tracking-tight text-text-main">Workspace Settings</h1>
           <p className="text-sm text-text-muted mt-1">Configure identity, members, and budget rules.</p>
         </div>
@@ -105,7 +105,7 @@ export default function WorkspaceSettingsPage() {
       {/* Pending Invitations Section */}
       <PendingInvitesSection />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
 
         {/* General Settings */}
         <div className="lg:col-span-1">
@@ -148,8 +148,8 @@ export default function WorkspaceSettingsPage() {
       {/* Advanced Section */}
       {isOwner && activeWorkspace?.type !== 'personal' && (
         <Card className="p-6 border-red-500/20 bg-red-500/[0.02]" title="Advanced Operations">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <p className="text-sm font-bold text-text-main">Archive Workspace</p>
               <p className="text-xs text-text-muted mt-1">This will disable all API keys and stop all routing for this workspace.</p>
             </div>
@@ -203,17 +203,17 @@ function PendingInvitesSection() {
     <Card className="p-6 border-primary/20 bg-primary/[0.02]" title="Thư mời đang chờ" subtitle="Bạn đã được mời tham gia vào các workspace sau">
       <div className="flex flex-col gap-4 mt-4">
         {invites.map((invite: any) => (
-          <div key={invite.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-surface border border-border">
-            <div className="flex items-center gap-3">
+          <div key={invite.id} className="flex flex-col justify-between gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 items-center gap-3">
               <div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center">
                 <span className="material-symbols-outlined text-primary">group_add</span>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-bold text-text-main">{invite.workspaceName || `Workspace ID: ${invite.workspaceId}`}</p>
                 <p className="text-[10px] text-text-muted capitalize">{invite.workspaceType} workspace · Vai trò: {invite.role} · Hết hạn: {new Date(invite.expiresAt).toLocaleDateString()}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
               <Button 
                 size="sm" 
                 variant="primary" 

@@ -495,7 +495,7 @@ export default function ProvidersPage() {
   // Only show skeletons if we have absolutely nothing to show (First ever load)
   if (loading && connections.length === 0) {
     return (
-      <div className="flex flex-col gap-8 animate-in fade-in duration-200">
+      <div className="flex min-w-0 flex-col gap-8 animate-in fade-in duration-200">
         <div className="flex flex-col gap-4">
           <div className="h-8 w-48 bg-muted animate-pulse rounded-lg" />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -510,7 +510,7 @@ export default function ProvidersPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       {/* OAuth Providers */}
       <div className="flex flex-col gap-4 relative">
         {refreshing && (
@@ -562,14 +562,14 @@ export default function ProvidersPage() {
 
       {/* Free & Free Tier Providers */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="flex items-center gap-2 text-xl font-semibold">
             Free &amp; Free Tier Providers
           </h2>
           <button
             onClick={() => handleBatchTest("free")}
             disabled={!!testingMode}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors active:scale-[0.98] ${
               testingMode === "free"
                 ? "bg-primary/20 border-primary/40 text-primary animate-pulse"
                 : "bg-bg border-border text-text-muted hover:text-text-main hover:border-primary/40"
@@ -615,14 +615,14 @@ export default function ProvidersPage() {
 
       {/* API Key Providers — fixed list */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="flex items-center gap-2 text-xl font-semibold">
             API Key Providers{" "}
           </h2>
           <button
             onClick={() => handleBatchTest("apikey")}
             disabled={!!testingMode}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors active:scale-[0.98] ${
               testingMode === "apikey"
                 ? "bg-primary/20 border-primary/40 text-primary animate-pulse"
                 : "bg-bg border-border text-text-muted hover:text-text-main hover:border-primary/40"
@@ -656,11 +656,11 @@ export default function ProvidersPage() {
 
       {/* API Key Compatible Providers — dynamic (OpenAI/Anthropic compatible) */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <h2 className="flex items-center gap-2 text-xl font-semibold">
             API Key Compatible Providers{" "}
           </h2>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:flex">
             {/* {(compatibleProviders.length > 0 || anthropicCompatibleProviders.length > 0) && (
               <button
                 onClick={() => handleBatchTest("compatible")}
@@ -782,13 +782,13 @@ function ProviderCard({
   };
 
   return (
-    <Link href={`/providers/${providerId}`} className="group">
+    <Link href={`/providers/${providerId}`} className="group min-w-0">
       <Card
         padding="xs"
         className={`h-full hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors cursor-pointer ${allDisabled ? "opacity-50" : ""}`}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
             <div
               className="size-8 rounded-lg flex items-center justify-center"
               style={{
@@ -806,8 +806,8 @@ function ProviderCard({
                 fallbackColor={provider.color}
               />
             </div>
-            <div>
-              <h3 className="font-semibold">{provider.name}</h3>
+            <div className="min-w-0">
+              <h3 className="truncate font-semibold">{provider.name}</h3>
               <div className="flex items-center gap-2 text-xs flex-wrap">
                 {allDisabled ? (
                   <Badge variant="default" size="sm">
@@ -908,13 +908,13 @@ function ApiKeyProviderCard({
   };
 
   return (
-    <Link href={`/providers/${providerId}`} className="group">
+    <Link href={`/providers/${providerId}`} className="group min-w-0">
       <Card
         padding="xs"
         className={`h-full hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors cursor-pointer ${allDisabled ? "opacity-50" : ""}`}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
             <div
               className="size-8 rounded-lg flex items-center justify-center"
               style={{
@@ -932,8 +932,8 @@ function ApiKeyProviderCard({
                 fallbackColor={provider.color}
               />
             </div>
-            <div>
-              <h3 className="font-semibold">{provider.name}</h3>
+            <div className="min-w-0">
+              <h3 className="truncate font-semibold">{provider.name}</h3>
               <div className="flex items-center gap-2 text-xs flex-wrap">
                 {allDisabled ? (
                   <Badge variant="default" size="sm">

@@ -4,6 +4,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "check-types": "tsc --noEmit -p tsconfig.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -27,6 +30,7 @@
   },
   "dependencies": {
     "@prisma/client": "^7.8.0",
+    "@prisma/adapter-pg": "^7.8.0",
     "axios": "^1.16.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -37,6 +41,7 @@
     "lodash": "^4.18.1",
     "morgan": "^1.10.1",
     "passport": "^0.7.0",
-    "passport-google-oauth20": "^2.0.0"
+    "passport-google-oauth20": "^2.0.0",
+    "pg": "^8.16.3"
   }
 }
