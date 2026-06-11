@@ -14,6 +14,7 @@ model User {
   id        String   @id @default(cuid())
   email     String   @unique
   name      String?
+  passwordHash String?
   persona   String?
   googleId  String?  @unique
   role      String   @default("user")   // "user" | "admin"
@@ -26,6 +27,7 @@ model User {
   connections ProviderConnection[]
   combos      ModelCombo[]
   platformUsages PlatformUsage[]
+  paymentOrders PaymentOrder[]
 }
 
 model ClientDailyUsage {
@@ -77,6 +79,31 @@ model PricingPackage {
   updatedAt   DateTime @updatedAt
 
   @@index([isActive, sortOrder])
+}
+
+model PaymentOrder {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  userId          String?
+  amountUSD       Float
+  amountVND       Float?
+  provider        String
+  status          String    @default("pending")
+  transferContent String?   @unique
+  qrUrl           String?
+  bankId          String?
+  accountNo       String?
+  accountName     String?
+  expiresAt       DateTime?
+  externalId      String?   @unique
+  createdAt       DateTime  @default(now())
+  completedAt     DateTime?
+  creditsEarned   Float?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([provider, status])
 }
 
 model ApiKey {

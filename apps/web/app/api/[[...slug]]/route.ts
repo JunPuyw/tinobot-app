@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, PROVIDER_MODELS } from "@/lib/aimodel";
 import { getAdminUser as getSharedAdminUser } from "@/lib/adminUser";
+import { hashPassword, verifyPassword } from "@/lib/password";
 import { randomBytes } from "node:crypto";
 
 const API_KEY_PREFIX = "sk-tinobot";
@@ -478,18 +479,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   }
 
   if (path === "/auth/user/login") {
-    const { email } = body;
+    const email = String(body.email || "").trim().toLowerCase();
+    const password = String(body.password || "");
+    if (!email || !password) {
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
+    }
+
     let user = await prisma.user.findUnique({ where: { email } });
-    
-    // Auto-create user for testing if they don't exist
-    if (!user) {
-      user = await prisma.user.create({
-        data: { 
-          email, 
-          name: email.split("@")[0],
-          apiKeys: { create: { name: "Default Key", key: generateApiKey(), prefix: API_KEY_PREFIX } }
-        }
-      });
+    if (!user || !verifyPassword(password, user.passwordHash)) {
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
     const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim());
@@ -503,11 +501,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   }
 
   if (path === "/auth/user/register") {
-    const { email, name } = body;
+    const email = String(body.email || "").trim().toLowerCase();
+    const name = String(body.name || "").trim();
+    const password = String(body.password || "");
+    if (!email || !password) {
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
+    }
+    if (password.length < 8) {
+      return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+    }
+
     let user = await prisma.user.findUnique({ where: { email } });
     if (user) return NextResponse.json({ error: "Exists" }, { status: 400 });
     user = await prisma.user.create({
-      data: { email, name, apiKeys: { create: { name: "Default Key", key: generateApiKey(), prefix: API_KEY_PREFIX } } }
+      data: {
+        email,
+        name: name || email.split("@")[0] || "User",
+        passwordHash: hashPassword(password),
+        apiKeys: { create: { name: "Default Key", key: generateApiKey(), prefix: API_KEY_PREFIX } }
+      }
     });
     withRuntimeRole(user);
     const res = NextResponse.json({ token: user.id, user });

@@ -1,9 +1,6 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
-import {
-  createMockPaymentOrder,
-  findMockPaymentOrderByExternalId,
-} from "@/lib/mockBilling";
+import { findMockPaymentOrderByExternalId } from "@/lib/mockBilling";
 import prisma from "@/lib/prisma";
 
 const POLAR_WEBHOOK_SECRET = process.env.POLAR_WEBHOOK_SECRET;
@@ -107,7 +104,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: "Missing metadata" });
     }
 
-    const existing = findMockPaymentOrderByExternalId(polarOrderId);
+    const existing = await findMockPaymentOrderByExternalId(polarOrderId);
     if (existing) {
       console.log(`[Polar Webhook] Order ${polarOrderId} already processed`);
       return NextResponse.json({ success: true });
@@ -115,20 +112,31 @@ export async function POST(request: Request) {
 
     const userId = getUserIdFromWorkspaceId(workspaceId);
 
-    createMockPaymentOrder({
-      workspaceId,
-      amountUSD: amountUSDNum,
-      provider: "polar",
-      status: "completed",
-      externalId: polarOrderId,
-      completedAt: new Date().toISOString(),
-      creditsEarned: creditsNum,
-    });
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: { credits: { increment: creditsNum } },
-    });
+    try {
+      await prisma.$transaction([
+        prisma.paymentOrder.create({
+          data: {
+            workspaceId,
+            userId,
+            amountUSD: amountUSDNum,
+            provider: "polar",
+            status: "completed",
+            externalId: polarOrderId,
+            completedAt: new Date(),
+            creditsEarned: creditsNum,
+          },
+        }),
+        prisma.user.update({
+          where: { id: userId },
+          data: { credits: { increment: creditsNum } },
+        }),
+      ]);
+    } catch (error: any) {
+      if (error?.code === "P2002") {
+        return NextResponse.json({ success: true, alreadyProcessed: true });
+      }
+      throw error;
+    }
 
     console.log(`[Polar Webhook] Processed ${event.type} ${polarOrderId}, added ${creditsNum} credits to user ${userId}`);
     return NextResponse.json({ success: true });

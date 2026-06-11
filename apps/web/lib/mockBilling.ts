@@ -1,100 +1,95 @@
+import prisma from "@/lib/prisma";
+
 export type MockPaymentOrder = {
   id: string;
   workspaceId: string;
+  userId?: string | null;
   amountUSD: number;
-  amountVND?: number;
+  amountVND?: number | null;
   provider: "sepay" | "polar";
   status: "pending" | "completed" | "expired";
-  transferContent?: string;
-  qrUrl?: string;
-  bankId?: string;
-  accountNo?: string;
-  accountName?: string;
-  expiresAt?: string;
-  externalId?: string;
-  createdAt: string;
-  completedAt?: string;
+  transferContent?: string | null;
+  qrUrl?: string | null;
+  bankId?: string | null;
+  accountNo?: string | null;
+  accountName?: string | null;
+  expiresAt?: Date | string | null;
+  externalId?: string | null;
+  createdAt: Date | string;
+  completedAt?: Date | string | null;
   creditsEarned?: number | null;
 };
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __tinoMockBilling:
-    | {
-        orders: MockPaymentOrder[];
-      }
-    | undefined;
+function normalizeOrder(order: any): MockPaymentOrder {
+  return {
+    ...order,
+    provider: order.provider as "sepay" | "polar",
+    status: order.status as "pending" | "completed" | "expired",
+  };
 }
 
-function getStore() {
-  if (!global.__tinoMockBilling) {
-    global.__tinoMockBilling = {
-      orders: [],
-    };
-  }
-  return global.__tinoMockBilling;
-}
-
-export function createMockPaymentOrder(
+export async function createMockPaymentOrder(
   order: Omit<MockPaymentOrder, "id" | "createdAt">,
 ) {
-  const createdOrder: MockPaymentOrder = {
-    ...order,
-    id: `ord_${Math.random().toString(36).slice(2, 10)}`,
-    createdAt: new Date().toISOString(),
-  };
-  getStore().orders.unshift(createdOrder);
-  return createdOrder;
+  const createdOrder = await prisma.paymentOrder.create({
+    data: {
+      ...order,
+      expiresAt: order.expiresAt ? new Date(order.expiresAt) : null,
+      completedAt: order.completedAt ? new Date(order.completedAt) : null,
+    },
+  });
+  return normalizeOrder(createdOrder);
 }
 
-export function listMockPaymentOrders(workspaceId?: string) {
-  const orders = getStore().orders;
-  if (!workspaceId) return orders;
-  return orders.filter((order) => order.workspaceId === workspaceId);
+export async function listMockPaymentOrders(workspaceId?: string) {
+  const orders = await prisma.paymentOrder.findMany({
+    where: workspaceId ? { workspaceId } : undefined,
+    orderBy: { createdAt: "desc" },
+  });
+  return orders.map(normalizeOrder);
 }
 
-export function getMockPaymentOrder(orderId: string) {
-  return getStore().orders.find((order) => order.id === orderId) ?? null;
+export async function getMockPaymentOrder(orderId: string) {
+  const order = await prisma.paymentOrder.findUnique({ where: { id: orderId } });
+  return order ? normalizeOrder(order) : null;
 }
 
-export function findMockPaymentOrderByTransferContent(transferContent: string) {
-  return (
-    getStore().orders.find(
-      (order) =>
-        order.transferContent?.toLowerCase() === transferContent.toLowerCase(),
-    ) ?? null
-  );
+export async function findMockPaymentOrderByTransferContent(transferContent: string) {
+  const order = await prisma.paymentOrder.findUnique({ where: { transferContent } });
+  return order ? normalizeOrder(order) : null;
 }
 
-export function findMockPaymentOrderByExternalId(externalId: string) {
-  return (
-    getStore().orders.find((order) => order.externalId === externalId) ?? null
-  );
+export async function findMockPaymentOrderByExternalId(externalId: string) {
+  if (!externalId) return null;
+  const order = await prisma.paymentOrder.findUnique({ where: { externalId } });
+  return order ? normalizeOrder(order) : null;
 }
 
-export function markMockPaymentOrderCompleted(
+export async function markMockPaymentOrderCompleted(
   orderId: string,
   updates: Pick<MockPaymentOrder, "externalId" | "creditsEarned" | "completedAt">,
 ) {
-  const order = getStore().orders.find((entry) => entry.id === orderId);
-  if (!order) return null;
-  order.status = "completed";
-  order.externalId = updates.externalId;
-  order.creditsEarned = updates.creditsEarned;
-  order.completedAt = updates.completedAt;
-  return order;
+  const updated = await prisma.paymentOrder.updateMany({
+    where: { id: orderId, status: "pending" },
+    data: {
+      status: "completed",
+      externalId: updates.externalId,
+      creditsEarned: updates.creditsEarned,
+      completedAt: updates.completedAt ? new Date(updates.completedAt) : new Date(),
+    },
+  });
+  if (updated.count === 0) return null;
+  return getMockPaymentOrder(orderId);
 }
 
-export function expireOldMockOrders(workspaceId: string, now = new Date()) {
-  for (const order of getStore().orders) {
-    if (
-      order.workspaceId === workspaceId &&
-      order.provider === "sepay" &&
-      order.status === "pending" &&
-      order.expiresAt &&
-      new Date(order.expiresAt) < now
-    ) {
-      order.status = "expired";
-    }
-  }
+export async function expireOldMockOrders(workspaceId: string, now = new Date()) {
+  await prisma.paymentOrder.updateMany({
+    where: {
+      workspaceId,
+      provider: "sepay",
+      status: "pending",
+      expiresAt: { lt: now },
+    },
+    data: { status: "expired" },
+  });
 }

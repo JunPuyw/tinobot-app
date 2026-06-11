@@ -13,6 +13,7 @@ import cookieParser from "cookie-parser";
 import prisma from "./lib/prisma";
 import { randomBytes, randomUUID } from "node:crypto";
 import { fetchPlatformUpstream, PlatformUpstreamConfigurationError } from "./lib/platformUpstreams";
+import { hashPassword, verifyPassword } from "./password";
 
 const API_KEY_PREFIX = "sk-tinobot";
 const VALID_COMBO_NAME = /^[a-zA-Z0-9_.-]+$/;
@@ -486,21 +487,17 @@ app.get("/health", (req: Request, res: Response) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Mock user data for FE calls
 app.post("/api/auth/user/login", async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const password = String(req.body.password || "");
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
     let user = await prisma.user.findUnique({ where: { email } });
-    
-    // Auto-create user for testing
-    if (!user) {
-      user = await prisma.user.create({
-        data: { 
-          email, 
-          name: email.split("@")[0],
-          apiKeys: { create: { name: "Default Key", key: generateApiKey(), prefix: API_KEY_PREFIX } }
-        }
-      });
+    if (!user || !verifyPassword(password, user.passwordHash)) {
+      return res.status(401).json({ error: "Invalid email or password" });
     }
 
     withRuntimeRole(user);
@@ -513,8 +510,6 @@ app.post("/api/auth/user/login", async (req: Request, res: Response) => {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    withRuntimeRole(user);
-
     res.json({
       token: user.id,
       user
@@ -526,7 +521,15 @@ app.post("/api/auth/user/login", async (req: Request, res: Response) => {
 
 app.post("/api/auth/user/register", async (req: Request, res: Response) => {
   try {
-    const { name, email, password } = req.body;
+    const name = String(req.body.name || "").trim();
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const password = String(req.body.password || "");
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters" });
+    }
     
     // Check if user exists
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -535,7 +538,8 @@ app.post("/api/auth/user/register", async (req: Request, res: Response) => {
     const user = await prisma.user.create({
       data: {
         email,
-        name,
+        name: name || email.split("@")[0] || "User",
+        passwordHash: hashPassword(password),
         apiKeys: {
           create: {
             name: "Default Key",

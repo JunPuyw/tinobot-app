@@ -4,7 +4,6 @@ import {
   findMockPaymentOrderByExternalId,
   findMockPaymentOrderByTransferContent,
   listMockPaymentOrders,
-  markMockPaymentOrderCompleted,
 } from "@/lib/mockBilling";
 import prisma from "@/lib/prisma";
 
@@ -30,13 +29,13 @@ function getSepayExternalId(body: Record<string, any>, paymentCode: string, tran
   return externalId || `${paymentCode}-${transferAmount}`;
 }
 
-function findSepayOrderFromContent(content: string) {
-  const exact = findMockPaymentOrderByTransferContent(content);
+async function findSepayOrderFromContent(content: string) {
+  const exact = await findMockPaymentOrderByTransferContent(content);
   if (exact) return exact;
 
   const normalizedContent = content.toLowerCase();
   return (
-    listMockPaymentOrders().find(
+    (await listMockPaymentOrders()).find(
       (order) =>
         order.provider === "sepay" &&
         order.status === "pending" &&
@@ -66,13 +65,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: "Ignored out-transfer" });
     }
 
-    const order = findSepayOrderFromContent(paymentCode);
+    const order = await findSepayOrderFromContent(paymentCode);
     if (!order || order.provider !== "sepay" || order.status !== "pending") {
       console.warn("[SePay Webhook] No pending order for", paymentCode);
       return NextResponse.json({ success: true, message: "Order not found" });
     }
 
-    const existing = findMockPaymentOrderByExternalId(sepayId);
+    const existing = await findMockPaymentOrderByExternalId(sepayId);
     if (existing) {
       return NextResponse.json({ success: true, alreadyProcessed: true });
     }
@@ -88,20 +87,28 @@ export async function POST(request: Request) {
     const creditsEarned = parseFloat((order.amountUSD * (settings.topupExchangeRate || 1)).toFixed(2));
     const userId = getUserIdFromWorkspaceId(order.workspaceId);
 
-    const updatedOrder = markMockPaymentOrderCompleted(order.id, {
-      externalId: sepayId,
-      completedAt: new Date().toISOString(),
-      creditsEarned,
+    const completedAt = new Date();
+    const transactionResult = await prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.paymentOrder.updateMany({
+        where: { id: order.id, status: "pending" },
+        data: {
+          status: "completed",
+          externalId: sepayId,
+          creditsEarned,
+          completedAt,
+        },
+      });
+      if (updatedOrder.count === 0) return false;
+      await tx.user.update({
+        where: { id: userId },
+        data: { credits: { increment: creditsEarned } },
+      });
+      return true;
     });
 
-    if (!updatedOrder) {
-      return NextResponse.json({ success: true, message: "Order update failed" });
+    if (!transactionResult) {
+      return NextResponse.json({ success: true, message: "Order already handled" });
     }
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: { credits: { increment: creditsEarned } },
-    });
 
     console.log(`[SePay Webhook] Credited $${creditsEarned} to user ${userId}`);
     return NextResponse.json({ success: true });

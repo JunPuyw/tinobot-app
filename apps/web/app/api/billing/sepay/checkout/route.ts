@@ -36,7 +36,8 @@ export async function POST(request: Request) {
   const user = await getPortalUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const workspaceId = request.headers.get("X-Workspace-Id") || (user as any).workspaceId;
+  const body = await request.json();
+  const workspaceId = request.headers.get("X-Workspace-Id") || body.workspaceId || (user as any).workspaceId || `user-${user.id}`;
   if (!workspaceId) {
     return NextResponse.json({ error: "Workspace required" }, { status: 400 });
   }
@@ -53,7 +54,6 @@ export async function POST(request: Request) {
 
     const settings = await getSettings();
     const vndToUsdRate = Number(settings.vndUsdRate || process.env.VND_TO_USD_RATE || 25000);
-    const body = await request.json();
 
     let amountVND: number;
     let amountUSD: number;
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
 
     let transferContent = generateTransferCode();
     for (let attempts = 0; attempts < 5; attempts++) {
-      const existing = listMockPaymentOrders().find(
+      const existing = (await listMockPaymentOrders()).find(
         (order) => order.transferContent === transferContent,
       );
       if (!existing) break;
@@ -91,10 +91,11 @@ export async function POST(request: Request) {
     const qrUrl = `https://qr.sepay.vn/img?acc=${SEPAY_ACCOUNT_NO}&bank=${encodeURIComponent(SEPAY_BANK_ID)}&amount=${amountVND}&des=${encodeURIComponent(transferContent)}&template=compact`;
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    expireOldMockOrders(workspaceId);
+    await expireOldMockOrders(workspaceId);
 
-    const order = createMockPaymentOrder({
+    const order = await createMockPaymentOrder({
       workspaceId,
+      userId: user.id,
       amountUSD,
       amountVND,
       provider: "sepay",
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
       bankId: SEPAY_BANK_ID,
       accountNo: SEPAY_ACCOUNT_NO,
       accountName: SEPAY_ACCOUNT_NAME,
-      expiresAt: expiresAt.toISOString(),
+      expiresAt,
       creditsEarned: null,
     });
 

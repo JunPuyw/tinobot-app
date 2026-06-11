@@ -1,12 +1,16 @@
 // lib/auth.ts – shared authentication helper
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
+import { getPortalUser } from "@/lib/userAuth";
 
 /**
  * Retrieve the authenticated user payload from cookies.
  * Returns the JWT payload if a valid token is present, otherwise null.
  */
 export async function getAuthUser() {
+  const portalUser = await getPortalUser();
+  if (portalUser) return portalUser;
+
   const cookieStore = await cookies();
   const token = cookieStore.get("auth_token")?.value;
   const portalToken = cookieStore.get("portal_auth_token")?.value;
