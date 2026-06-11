@@ -116,6 +116,15 @@ function formatUsageDay(date: Date) {
   }).format(date);
 }
 
+function withRuntimeRole<T extends { email?: string; role?: string } | null>(user: T): T {
+  if (!user?.email) return user;
+  const adminEmails = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean);
+  if (adminEmails.includes(user.email)) {
+    (user as any).role = "admin";
+  }
+  return user;
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug?: string[] }> }) {
   const resolvedParams = await params;
   const path = "/" + (resolvedParams.slug?.join("/") || "");
@@ -499,6 +508,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     user = await prisma.user.create({
       data: { email, name, apiKeys: { create: { name: "Default Key", key: generateApiKey(), prefix: API_KEY_PREFIX } } }
     });
+    withRuntimeRole(user);
     const res = NextResponse.json({ token: user.id, user });
     res.cookies.set("auth-token", user.id, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 7 * 24 * 60 * 60 });
     return res;

@@ -273,8 +273,18 @@ async function chargePlatformUsage(userId: string, model: string, payload: any, 
   return { pricingMode, baseCredits, markupPercent: settings.platformMarkupPercent, markupCredits, chargedCredits, creditsRemaining };
 }
 
+function withRuntimeRole<T extends { email?: string; role?: string } | null>(user: T): T {
+  if (!user?.email) return user;
+  const adminEmails = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean);
+  if (adminEmails.includes(user.email)) {
+    (user as any).role = "admin";
+  }
+  return user;
+}
+
 async function getRequestUser(req: Request) {
-  return (req.user || (req.cookies["auth-token"] ? await prisma.user.findUnique({ where: { id: req.cookies["auth-token"] } }) : null)) as any;
+  const user = (req.user || (req.cookies["auth-token"] ? await prisma.user.findUnique({ where: { id: req.cookies["auth-token"] } }) : null)) as any;
+  return withRuntimeRole(user);
 }
 
 function normalizeRequestedModel(body: any) {
@@ -493,10 +503,7 @@ app.post("/api/auth/user/login", async (req: Request, res: Response) => {
       });
     }
 
-    const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim());
-    if (ADMIN_EMAILS.includes(user.email)) {
-      (user as any).role = "admin";
-    }
+    withRuntimeRole(user);
 
     // Set auth cookie
     res.cookie("auth-token", user.id, {
@@ -505,6 +512,8 @@ app.post("/api/auth/user/login", async (req: Request, res: Response) => {
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
+
+    withRuntimeRole(user);
 
     res.json({
       token: user.id,
@@ -559,16 +568,14 @@ app.get("/api/auth/user/me", async (req: Request, res: Response) => {
     // Priority: passport session (Google OAuth) → auth-token cookie (email/pw login) → 401
     const sessionUser = req.user as any;
     if (sessionUser) {
-      return res.json({ user: sessionUser });
+      return res.json({ user: withRuntimeRole(sessionUser) });
     }
 
     const tokenUserId = req.cookies["auth-token"];
     if (tokenUserId) {
       const user = await prisma.user.findUnique({ where: { id: tokenUserId } });
       if (user) {
-        const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim());
-        if (ADMIN_EMAILS.includes(user.email)) (user as any).role = "admin";
-        return res.json({ user });
+        return res.json({ user: withRuntimeRole(user) });
       }
     }
 

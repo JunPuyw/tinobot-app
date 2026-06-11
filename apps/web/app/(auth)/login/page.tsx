@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { translate, onLocaleChange } from "@/i18n/runtime";
@@ -39,10 +39,15 @@ const Loading = () => (
   </div>
 );
 
+function getSafeRedirect(value: string | null, fallback: string) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return fallback;
+  return value;
+}
+
 function LoginContent() {
-  const useRouterState = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") || "/usage";
+  const redirect = getSafeRedirect(searchParams.get("redirect"), "/usage");
+  const registerHref = `/register?redirect=${encodeURIComponent(redirect)}`;
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState(searchParams.get("error") || "");
   const [loading, setLoading] = useState(false);
@@ -157,7 +162,7 @@ function LoginContent() {
 
           <div className="pt-2 text-center">
             <p className="text-xs text-muted-foreground font-medium">
-              {translate("Don't have an account?")} <Link href="/register" className="text-primary font-bold hover:underline tracking-tight">{translate("Register for Access")}</Link>
+              {translate("Don't have an account?")} <Link href={registerHref} className="text-primary font-bold hover:underline tracking-tight">{translate("Register for Access")}</Link>
             </p>
           </div>
         </form>

@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { translate, onLocaleChange } from "@/i18n/runtime";
@@ -39,10 +39,15 @@ const Loading = () => (
   </div>
 );
 
+function getSafeRedirect(value: string | null, fallback: string) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return fallback;
+  return value;
+}
+
 function RegisterContent() {
-  const useRouterState = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") || "/";
+  const redirect = getSafeRedirect(searchParams.get("redirect"), "/usage");
+  const loginHref = `/login?redirect=${encodeURIComponent(redirect)}`;
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -67,8 +72,7 @@ function RegisterContent() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Registration failed");
 
-      // New users always go to onboarding to select their persona
-      window.location.href = "/onboarding";
+      window.location.href = redirect;
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -164,7 +168,7 @@ function RegisterContent() {
 
           <div className="pt-2 text-center">
             <p className="text-xs text-muted-foreground font-medium">
-              {translate("Already have an account?")} <Link href="/login" className="text-primary font-bold hover:underline tracking-tight">{translate("Login Instead")}</Link>
+              {translate("Already have an account?")} <Link href={loginHref} className="text-primary font-bold hover:underline tracking-tight">{translate("Login Instead")}</Link>
             </p>
           </div>
         </form>
