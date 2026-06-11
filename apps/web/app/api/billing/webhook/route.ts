@@ -13,7 +13,9 @@ function getUserIdFromWorkspaceId(workspaceId: string) {
 }
 
 function isPaidPolarEvent(event: any) {
-  if (event?.type === "order.created") return true;
+  if (event?.type === "order.created" || event?.type === "order.updated" || event?.type === "order.paid") {
+    return event?.data?.paid === true || event?.data?.status === "paid";
+  }
   if (event?.type === "checkout.updated") {
     return event?.data?.status === "confirmed" || event?.data?.status === "succeeded";
   }

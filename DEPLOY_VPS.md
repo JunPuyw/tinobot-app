@@ -59,10 +59,17 @@ For Polar checkout, configure the webhook endpoint in Polar:
 
 ```txt
 Webhook URL: https://your-domain.com/api/billing/webhook
-Events: checkout.updated
+Events: checkout.updated, order.updated
 ```
 
-The app credits the user when Polar sends `checkout.updated` with `status: confirmed`.
+If you configured Polar under the payments namespace, this alias is also supported:
+
+```txt
+Webhook URL: https://your-domain.com/api/payments/polar/webhook
+Events: checkout.updated, order.updated
+```
+
+The app credits the user when Polar sends `checkout.updated` with `status: confirmed` or `order.updated` with `status: paid`.
 
 ## 3. Start the stack
 
