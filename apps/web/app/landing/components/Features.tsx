@@ -4,14 +4,14 @@ import { onLocaleChange } from "@/i18n/runtime";
 import { useEffect, useState } from "react";
 
 const featureDefs = [
-  { icon: "link", key: "Unified Endpoint", descKey: "Access all providers via a single standard API URL.", colors: { border: "hover:border-blue-500/50", bg: "hover:bg-blue-500/5", iconBg: "bg-blue-500/10", iconText: "text-blue-500", titleHover: "group-hover:text-blue-400" } },
-  { icon: "bolt", key: "Easy Setup", descKey: "Get up and running in minutes with npx command.", colors: { border: "hover:border-orange-500/50", bg: "hover:bg-orange-500/5", iconBg: "bg-orange-500/10", iconText: "text-orange-500", titleHover: "group-hover:text-orange-400" } },
-  { icon: "shield_with_heart", key: "Model Fallback", descKey: "Automatically switch providers on failure or high latency.", colors: { border: "hover:border-rose-500/50", bg: "hover:bg-rose-500/5", iconBg: "bg-rose-500/10", iconText: "text-rose-500", titleHover: "group-hover:text-rose-400" } },
-  { icon: "monitoring", key: "Usage Tracking", descKey: "Detailed analytics and cost monitoring across all models.", colors: { border: "hover:border-purple-500/50", bg: "hover:bg-purple-500/5", iconBg: "bg-purple-500/10", iconText: "text-purple-500", titleHover: "group-hover:text-purple-400" } },
-  { icon: "key", key: "OAuth & API Keys", descKey: "Securely manage credentials in one vault.", colors: { border: "hover:border-amber-500/50", bg: "hover:bg-amber-500/5", iconBg: "bg-amber-500/10", iconText: "text-amber-500", titleHover: "group-hover:text-amber-400" } },
-  { icon: "cloud_sync", key: "Cloud Sync", descKey: "Sync your configurations across devices instantly.", colors: { border: "hover:border-sky-500/50", bg: "hover:bg-sky-500/5", iconBg: "bg-sky-500/10", iconText: "text-sky-500", titleHover: "group-hover:text-sky-400" } },
-  { icon: "terminal", key: "CLI Support", descKey: "Works with Claude Code, Codex, Cline, Cursor, and more.", colors: { border: "hover:border-emerald-500/50", bg: "hover:bg-emerald-500/5", iconBg: "bg-emerald-500/10", iconText: "text-emerald-500", titleHover: "group-hover:text-emerald-400" } },
-  { icon: "dashboard", key: "Dashboard", descKey: "Visual dashboard for real-time traffic analysis.", colors: { border: "hover:border-fuchsia-500/50", bg: "hover:bg-fuchsia-500/5", iconBg: "bg-fuchsia-500/10", iconText: "text-fuchsia-500", titleHover: "group-hover:text-fuchsia-400" } },
+  { icon: "link", key: "Unified Endpoint", descKey: "Access all providers via a single standard API URL." },
+  { icon: "bolt", key: "Easy Setup", descKey: "Get up and running in minutes with npx command." },
+  { icon: "shield_with_heart", key: "Model Fallback", descKey: "Automatically switch providers on failure or high latency." },
+  { icon: "monitoring", key: "Usage Tracking", descKey: "Detailed analytics and cost monitoring across all models." },
+  { icon: "key", key: "OAuth & API Keys", descKey: "Securely manage credentials in one vault." },
+  { icon: "cloud_sync", key: "Cloud Sync", descKey: "Sync your configurations across devices instantly." },
+  { icon: "terminal", key: "CLI Support", descKey: "Works with Claude Code, Codex, Cline, Cursor, and more." },
+  { icon: "dashboard", key: "Dashboard", descKey: "Visual dashboard for real-time traffic analysis." },
 ];
 
 export default function Features() {
@@ -35,12 +35,12 @@ export default function Features() {
           {featureDefs.map((f) => (
             <div
               key={f.key}
-              className={`p-8 rounded-2xl bg-[#23180f]/40 border border-white/[0.05] ${f.colors.border} ${f.colors.bg} transition-all duration-500 group hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(0,0,0,0.3)] backdrop-blur-sm`}
+              className="group rounded-2xl border border-[#4a3324]/70 bg-[#211711]/70 p-8 shadow-[0_20px_60px_rgba(10,7,4,0.22)] backdrop-blur-sm transition-all duration-500 hover:-translate-y-2 hover:border-[#f97815]/45 hover:bg-[#261a12]"
             >
-              <div className={`w-12 h-12 rounded-xl ${f.colors.iconBg} flex items-center justify-center mb-6 ${f.colors.iconText} group-hover:scale-110 transition-transform duration-500`}>
+              <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl border border-[#f97815]/20 bg-[#f97815]/10 text-[#f97815] transition-transform duration-500 group-hover:scale-110">
                 <span className="material-symbols-outlined text-[28px]">{f.icon}</span>
               </div>
-              <h3 className={`text-xl font-bold mb-3 ${f.colors.titleHover} transition-colors tracking-tight`}>
+              <h3 className="mb-3 text-xl font-bold tracking-tight text-white transition-colors group-hover:text-[#f97815]">
                 {translate(f.key)}
               </h3>
               <p className="text-base text-gray-400 leading-relaxed font-medium">{translate(f.descKey)}</p>

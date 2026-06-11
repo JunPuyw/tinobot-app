@@ -11,7 +11,7 @@ import Footer from "./components/Footer";
 
 export default function LandingPage() {
   return (
-    <div className="relative overflow-x-hidden text-white antialiased selection:bg-[#f97815] selection:text-white">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#17120f] text-white antialiased selection:bg-[#f97815] selection:text-white">
       <AnimatedBackground />
       <div className="relative z-10">
         <Navigation />
@@ -30,10 +30,11 @@ export default function LandingPage() {
           <Features />
 
           {/* CTA Section */}
-          <section className="py-40 px-6 relative overflow-hidden group">
-            <div className="absolute inset-0 bg-[#f97815]/5 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
+          <section className="relative overflow-hidden px-6 py-32 sm:py-40">
+            <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-[#f97815]/35 to-transparent" />
+            <div className="absolute inset-0 bg-[#1e1712]/70 pointer-events-none" />
             <div className="max-w-4xl mx-auto text-center relative z-10">
-              <h2 className="text-5xl md:text-6xl font-bold mb-8 tracking-tighter">Ready to Simplify Your <br /> AI Infrastructure?</h2>
+              <h2 className="text-4xl md:text-6xl font-bold mb-8 tracking-tight text-balance">Ready to Simplify Your <br /> AI Infrastructure?</h2>
               <p className="text-xl md:text-2xl text-gray-400 mb-12 max-w-2xl mx-auto font-medium">
                 Join developers who are streamlining their AI integrations with <span className="text-[#f97815] font-bold">Tinobot</span>.
                 Open source and free to start.

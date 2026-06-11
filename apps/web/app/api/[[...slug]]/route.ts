@@ -8,6 +8,27 @@ import { randomBytes } from "node:crypto";
 const API_KEY_PREFIX = "sk-tinobot";
 const VALID_COMBO_NAME = /^[a-zA-Z0-9_.-]+$/;
 
+function isLocalAppUrl(value: string | undefined) {
+  return !value || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(value);
+}
+
+function getPublicAppUrl(req: NextRequest) {
+  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!isLocalAppUrl(configuredUrl)) return configuredUrl!.replace(/\/$/, "");
+
+  const forwardedHost = req.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const host = forwardedHost || req.headers.get("host") || req.nextUrl.host;
+  const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const proto = forwardedProto || (host.includes("localhost") ? req.nextUrl.protocol.replace(":", "") : "https");
+
+  return `${proto}://${host}`.replace(/\/$/, "");
+}
+
+function getSafeRedirectPath(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/usage";
+  return value;
+}
+
 function generateApiKey() {
   return `${API_KEY_PREFIX}-${randomBytes(24).toString("hex")}`;
 }
@@ -116,21 +137,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 
   // --- GOOGLE OAUTH ---
   if (path === "/auth/user/google") {
-    const redirectUrl = searchParams.get("redirect") || "/usage";
+    const appUrl = getPublicAppUrl(req);
+    const redirectUrl = getSafeRedirectPath(searchParams.get("redirect"));
     const clientId = process.env.GOOGLE_CLIENT_ID || "";
-    const callbackUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/user/google/callback`;
+    const callbackUri = `${appUrl}/api/auth/user/google/callback`;
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUri)}&response_type=code&scope=email%20profile&state=${encodeURIComponent(redirectUrl)}`;
     return NextResponse.redirect(authUrl);
   }
 
   if (path === "/auth/user/google/callback") {
+    const appUrl = getPublicAppUrl(req);
     const code = searchParams.get("code");
-    const state = searchParams.get("state") || "/usage";
+    const state = getSafeRedirectPath(searchParams.get("state"));
     const clientId = process.env.GOOGLE_CLIENT_ID || "";
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
-    const callbackUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/user/google/callback`;
+    const callbackUri = `${appUrl}/api/auth/user/google/callback`;
 
-    if (!code) return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/login?error=NoCode`);
+    if (!code) return NextResponse.redirect(`${appUrl}/login?error=NoCode`);
 
     try {
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -141,6 +164,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
         })
       });
       const tokenData = await tokenRes.json();
+      if (!tokenRes.ok || !tokenData.access_token) {
+        console.error("[Google OAuth] Token exchange failed", {
+          status: tokenRes.status,
+          error: tokenData?.error,
+          description: tokenData?.error_description,
+          callbackUri,
+        });
+        throw new Error(tokenData?.error || "Google token exchange failed");
+      }
       
       const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
         headers: { Authorization: `Bearer ${tokenData.access_token}` }
@@ -168,11 +200,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
         user = await prisma.user.update({ where: { id: user.id }, data: { googleId: profile.id } });
       }
 
-      const res = NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}${state}`);
-      res.cookies.set("auth-token", user.id, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 7 * 24 * 60 * 60 });
+      const res = NextResponse.redirect(`${appUrl}${state}`);
+      res.cookies.set("auth-token", user.id, {
+        httpOnly: true,
+        secure: appUrl.startsWith("https://") || process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60,
+      });
       return res;
     } catch (e) {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/login?error=OAuthFailed`);
+      console.error("[Google OAuth] Callback failed", e);
+      return NextResponse.redirect(`${appUrl}/login?error=OAuthFailed`);
     }
   }
 

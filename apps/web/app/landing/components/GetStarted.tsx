@@ -14,7 +14,7 @@ export default function GetStarted() {
   };
 
   return (
-    <section className="py-24 px-6 bg-[#120f0d]">
+    <section className="bg-[#15100d] px-6 py-24">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col lg:flex-row gap-16 items-start">
 
@@ -64,10 +64,10 @@ export default function GetStarted() {
 
           {/* Right: Code block */}
           <div className="flex-1 w-full">
-            <div className="rounded-xl overflow-hidden bg-[#1e1e1e] border border-[#3a2f27] shadow-2xl">
+            <div className="overflow-hidden rounded-xl border border-[#4a3324] bg-[#1d1510] shadow-[0_24px_80px_rgba(8,5,3,0.35)]">
 
               {/* Terminal header */}
-              <div className="flex items-center gap-2 px-4 py-3 bg-[#252526] border-b border-gray-700">
+              <div className="flex items-center gap-2 border-b border-[#4a3324] bg-[#241912] px-4 py-3">
                 <div className="w-3 h-3 rounded-full bg-red-500"></div>
                 <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                 <div className="w-3 h-3 rounded-full bg-green-500"></div>
@@ -79,10 +79,10 @@ export default function GetStarted() {
 
                 <div
                   className="flex items-center gap-2 mb-4 group cursor-pointer"
-                  onClick={() => handleCopy(`curl https://api.tinobot.com/v1/chat \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -d '{"model":"gpt-4","prompt":"Hello"}'`)}
+                  onClick={() => handleCopy(`curl https://www.tinobot.com/v1/chat/completions \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"Hello"}]}'`)}
                 >
                   <span className="text-green-400">$</span>
-                  <span className="text-white">curl https://api.tinobot.com/v1/chat</span>
+                  <span className="text-white">curl https://www.tinobot.com/v1/chat/completions</span>
                   <span className="ml-auto text-gray-500 text-xs opacity-0 group-hover:opacity-100">
                     {copied ? "✓ Copied" : "Copy"}
                   </span>
@@ -94,13 +94,13 @@ export default function GetStarted() {
                   <span className="text-green-400">&gt;</span> {translate("Response received ✓")}
                 </div>
 
-                <div className="text-xs text-gray-500 mb-2 border-t border-gray-700 pt-4">
+                <div className="text-xs text-gray-500 mb-2 border-t border-[#4a3324] pt-4">
                   🔐 {translate("Your API key is securely managed via dashboard")}
                 </div>
 
                 <div className="text-gray-400 text-xs">
-                  <span className="text-purple-400">Base URL:</span><br />
-                  https://api.tinobot.com
+                  <span className="text-[#f97815]">Base URL:</span><br />
+                  https://www.tinobot.com/v1
                 </div>
               </div>
             </div>

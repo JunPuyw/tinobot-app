@@ -70,10 +70,10 @@ export async function handlePolarCheckout(request: Request) {
 
     const successUrl = isPortal
       ? `${origin}/portal/billing?success=true`
-      : `${origin}/dashboard/quota?success=true`;
+      : `${origin}/usage?success=true`;
     const cancelUrl = isPortal
       ? `${origin}/portal/billing?cancelled=true`
-      : `${origin}/dashboard/topup?cancelled=true`;
+      : `${origin}/billing?cancelled=true`;
 
     const response = await fetch("https://sandbox-api.polar.sh/v1/checkouts/", {
       method: "POST",

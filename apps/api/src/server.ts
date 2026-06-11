@@ -320,6 +320,30 @@ const port = process.env.PORT || 3001;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:20128";
 const PLATFORM_TIMEOUT_MS = 30_000;
 
+function isLocalAppUrl(value: string | undefined) {
+  return !value || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(value);
+}
+
+function getPublicAppUrl(req: Request) {
+  if (!isLocalAppUrl(process.env.NEXT_PUBLIC_APP_URL)) {
+    return process.env.NEXT_PUBLIC_APP_URL!.replace(/\/$/, "");
+  }
+
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0]?.trim();
+  const host = forwardedHost || req.get("host") || "localhost:3000";
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0]?.trim();
+  const proto = forwardedProto || (host.includes("localhost") ? req.protocol : "https");
+
+  return `${proto}://${host}`.replace(/\/$/, "");
+}
+
+function getSafeRedirectPath(value: unknown) {
+  const redirect = typeof value === "string" ? value : "";
+  if (!redirect || !redirect.startsWith("/") || redirect.startsWith("//")) return "/usage";
+  return redirect;
+}
+
+app.set("trust proxy", 1);
 app.use(helmet());
 app.use(cors({
   origin: [APP_URL, "http://localhost:3000", "http://localhost:20128"],
@@ -405,28 +429,37 @@ passport.deserializeUser(async (id: string, done) => {
 
 // --- Auth Routes ---
 app.get("/api/auth/user/google", (req: Request, res: Response, next) => {
-  const redirect = (req.query.redirect as string) || "/usage";
+  const appUrl = getPublicAppUrl(req);
+  const redirect = getSafeRedirectPath(req.query.redirect);
   passport.authenticate("google", { 
     scope: ["profile", "email"],
-    state: redirect
-  })(req, res, next);
+    state: redirect,
+    callbackURL: `${appUrl}/api/auth/user/google/callback`,
+  } as any)(req, res, next);
 });
 
-app.get("/api/auth/user/google/callback", 
-  passport.authenticate("google", { failureRedirect: `${APP_URL}/login?error=OAuthFailed` }),
+app.get("/api/auth/user/google/callback",
+  (req: Request, res: Response, next) => {
+    const appUrl = getPublicAppUrl(req);
+    passport.authenticate("google", {
+      failureRedirect: `${appUrl}/login?error=OAuthFailed`,
+      callbackURL: `${appUrl}/api/auth/user/google/callback`,
+    } as any)(req, res, next);
+  },
   (req: Request, res: Response) => {
+    const appUrl = getPublicAppUrl(req);
     const user = req.user as any;
     if (user) {
       // Set auth cookie so Next.js server can read it
       res.cookie("auth-token", user.id, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: appUrl.startsWith("https://") || process.env.NODE_ENV === "production",
         sameSite: "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
     }
-    const redirect = req.query.state as string || "/usage";
-    res.redirect(`${APP_URL}${redirect}`);
+    const redirect = getSafeRedirectPath(req.query.state);
+    res.redirect(`${appUrl}${redirect}`);
   }
 );
 

@@ -22,26 +22,18 @@ const PROVIDERS = [
   {
     id: "openai",
     name: "OpenAI",
-    color: "bg-emerald-500",
-    textColor: "text-white",
   },
   {
     id: "anthropic",
     name: "Anthropic",
-    color: "bg-orange-400",
-    textColor: "text-white",
   },
   {
     id: "gemini",
     name: "Gemini",
-    color: "bg-blue-500",
-    textColor: "text-white",
   },
   {
     id: "github",
     name: "GitHub Copilot",
-    color: "bg-gray-700",
-    textColor: "text-white",
   },
 ];
 
@@ -175,7 +167,7 @@ export default function FlowAnimation() {
         {PROVIDERS.map((provider, idx) => (
           <div
             key={provider.id}
-            className={`px-4 py-2 rounded-lg ${provider.color} ${provider.textColor} flex items-center justify-center font-bold text-xs shadow-lg hover:scale-110 transition-all cursor-help min-w-[140px] ${activeFlow === idx ? "ring-4 ring-[#f97815]/50 scale-110" : ""
+            className={`flex min-w-[140px] cursor-help items-center justify-center rounded-lg border px-4 py-2 text-xs font-bold text-white shadow-lg transition-all hover:scale-110 ${activeFlow === idx ? "scale-110 border-[#f97815] bg-[#f97815] text-[#181411] ring-4 ring-[#f97815]/35" : "border-[#4a3324] bg-[#241912]"
               }`}
             title={provider.name}
           >
@@ -211,7 +203,7 @@ export default function FlowAnimation() {
         </div>
         <div className="flex flex-wrap justify-center gap-3">
           {PROVIDERS.map((provider) => (
-            <div key={provider.id} className={`px-4 py-2 rounded-lg ${provider.color} ${provider.textColor} flex items-center justify-center font-bold text-xs shadow-lg`}>
+            <div key={provider.id} className="flex items-center justify-center rounded-lg border border-[#4a3324] bg-[#241912] px-4 py-2 text-xs font-bold text-white shadow-lg">
               {provider.name}
             </div>
           ))}
