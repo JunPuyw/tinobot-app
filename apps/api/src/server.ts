@@ -1,6 +1,6 @@
+import "./loadEnv";
 import express, { Request, Response } from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import morgan from "morgan";
 import helmet from "helmet";
 import requestId from "express-request-id";
@@ -13,8 +13,6 @@ import cookieParser from "cookie-parser";
 import prisma from "./lib/prisma";
 import { randomBytes, randomUUID } from "node:crypto";
 import { fetchPlatformUpstream, PlatformUpstreamConfigurationError } from "./lib/platformUpstreams";
-
-dotenv.config();
 
 const API_KEY_PREFIX = "sk-tinobot";
 const VALID_COMBO_NAME = /^[a-zA-Z0-9_.-]+$/;

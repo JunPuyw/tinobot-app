@@ -20,7 +20,9 @@ services:
       dockerfile: apps/web/Dockerfile
       target: app
     env_file:
-      - ${APP_ENV_FILE:-.env.production}
+      - ${APP_ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tinobot}:${POSTGRES_PASSWORD:-change-this-password}@postgres:5432/${POSTGRES_DB:-tinobot}?schema=public
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,7 +35,9 @@ services:
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     env_file:
-      - ${APP_ENV_FILE:-.env.production}
+      - ${APP_ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tinobot}:${POSTGRES_PASSWORD:-change-this-password}@postgres:5432/${POSTGRES_DB:-tinobot}?schema=public
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,7 +52,10 @@ services:
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
     env_file:
-      - ${APP_ENV_FILE:-.env.production}
+      - ${APP_ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tinobot}:${POSTGRES_PASSWORD:-change-this-password}@postgres:5432/${POSTGRES_DB:-tinobot}?schema=public
+      INTERNAL_API_URL: http://api:3001
     depends_on:
       postgres:
         condition: service_healthy

@@ -18,8 +18,8 @@ Log out and log in again so the Docker group is applied.
 ```bash
 git clone <your-repo-url> tinobot-app
 cd tinobot-app
-cp .env.production.example .env.production
-nano .env.production
+cp .env.example .env
+nano .env
 ```
 
 At minimum, change these values:
@@ -27,9 +27,11 @@ At minimum, change these values:
 ```env
 POSTGRES_PASSWORD=use-a-strong-password
 DATABASE_URL=postgresql://tinobot:use-a-strong-password@postgres:5432/tinobot?schema=public
+NODE_ENV=production
 NEXT_PUBLIC_APP_URL=https://your-domain.com
 INTERNAL_API_URL=http://api:3001
 SESSION_SECRET=use-a-long-random-secret
+JWT_SECRET=use-a-long-random-secret
 ADMIN_EMAILS=admin@example.com
 PLATFORM_UPSTREAMS_JSON=[...]
 ```
@@ -42,10 +44,10 @@ docker compose ps
 docker compose logs -f migrate
 ```
 
-To validate Compose locally without creating a production secret file:
+To validate Compose with the example file instead of your local secret file:
 
 ```bash
-APP_ENV_FILE=.env.production.example docker compose config
+APP_ENV_FILE=.env.example docker compose config
 ```
 
 The `migrate` service runs:
