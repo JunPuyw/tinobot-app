@@ -43,7 +43,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const avatarLetter = user?.name?.[0]?.toUpperCase() || "U";
 
   return (
-    <div className="relative flex min-h-[100dvh] overflow-x-hidden bg-bg text-text-main">
+    <div className="relative flex h-[100dvh] overflow-hidden bg-bg text-text-main">
       {isSidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-zinc-950/35 backdrop-blur-sm lg:hidden"
@@ -182,8 +182,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-bg/85 px-4 backdrop-blur-xl sm:px-6">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="z-30 flex h-16 shrink-0 items-center justify-between border-b border-border bg-bg/85 px-4 backdrop-blur-xl sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               className="rounded-lg p-2 text-text-muted transition-colors hover:bg-surface-hover hover:text-text-main focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 lg:hidden"
@@ -213,7 +213,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           </div>
         </header>
 
-        <div className="app-scrollbar min-w-0 flex-1 overflow-auto px-4 py-5 sm:px-6 lg:px-8 xl:px-10">
+        <div className="app-scrollbar min-h-0 min-w-0 flex-1 overflow-auto px-4 py-5 sm:px-6 lg:px-8 xl:px-10">
           <div className="mx-auto w-full max-w-[1440px]">{children}</div>
         </div>
       </main>

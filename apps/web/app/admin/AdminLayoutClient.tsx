@@ -25,7 +25,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   return (
-    <div className="flex min-h-screen bg-bg text-text-main relative">
+    <div className="relative flex h-[100dvh] overflow-hidden bg-bg text-text-main">
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
@@ -36,7 +36,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-surface border-r border-border transform transition-[width,transform] duration-300 ease-in-out sm:translate-x-0 sm:static shrink-0 overflow-x-hidden ${
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-surface border-r border-border transform transition-[width,transform] duration-300 ease-in-out sm:sticky sm:top-0 sm:h-[100dvh] sm:translate-x-0 shrink-0 overflow-x-hidden ${
           collapsed ? "w-20" : "w-64"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
@@ -125,8 +125,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Main */}
-      <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b border-border bg-surface px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="z-30 flex h-16 shrink-0 items-center justify-between border-b border-border bg-surface px-4 sm:px-8">
           <div className="flex items-center gap-3">
             <button
               className="sm:hidden text-text-muted hover:text-text-main p-1 focus:outline-none"
@@ -146,7 +146,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Link>
           </div>
         </header>
-        <div className="flex-1 p-4 sm:p-8 overflow-auto">
+        <div className="app-scrollbar min-h-0 flex-1 overflow-auto p-4 sm:p-8">
           {children}
         </div>
       </main>
