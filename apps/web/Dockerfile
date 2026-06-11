@@ -2,7 +2,9 @@ FROM node:22-alpine AS app
 
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG DATABASE_URL=postgresql://tinobot:tinobot@postgres:5432/tinobot?schema=public
 ARG INTERNAL_API_URL=http://api:3001
+ENV DATABASE_URL=$DATABASE_URL
 ENV INTERNAL_API_URL=$INTERNAL_API_URL
 
 COPY package.json package-lock.json turbo.json ./
