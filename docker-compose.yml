@@ -22,6 +22,8 @@ services:
     env_file:
       - ${APP_ENV_FILE:-.env}
     environment:
+      NODE_ENV: production
+      PORT: 3001
       DATABASE_URL: postgresql://${POSTGRES_USER:-tinobot}:${POSTGRES_PASSWORD:-change-this-password}@postgres:5432/${POSTGRES_DB:-tinobot}?schema=public
     depends_on:
       postgres:
@@ -37,6 +39,8 @@ services:
     env_file:
       - ${APP_ENV_FILE:-.env}
     environment:
+      NODE_ENV: production
+      PORT: 3001
       DATABASE_URL: postgresql://${POSTGRES_USER:-tinobot}:${POSTGRES_PASSWORD:-change-this-password}@postgres:5432/${POSTGRES_DB:-tinobot}?schema=public
     depends_on:
       postgres:
@@ -54,6 +58,8 @@ services:
     env_file:
       - ${APP_ENV_FILE:-.env}
     environment:
+      NODE_ENV: production
+      PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-tinobot}:${POSTGRES_PASSWORD:-change-this-password}@postgres:5432/${POSTGRES_DB:-tinobot}?schema=public
       INTERNAL_API_URL: http://api:3001
     depends_on:

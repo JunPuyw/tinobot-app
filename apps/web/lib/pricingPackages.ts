@@ -53,19 +53,14 @@ function normalizePackage(pkg: PricingPackageRecord) {
 }
 
 async function listRawPackages() {
-  const rows = await prisma.$queryRaw<PricingPackageRecord[]>`
-    SELECT id, name, description, priceUSD, credits, isActive, sortOrder, createdAt, updatedAt
-    FROM "PricingPackage"
-    ORDER BY sortOrder ASC, createdAt ASC
-  `;
+  const rows = await prisma.pricingPackage.findMany({
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
   return rows.map(normalizePackage);
 }
 
 export async function ensureDefaultPricingPackages() {
-  const rows = await prisma.$queryRaw<Array<{ total: number }>>`
-    SELECT COUNT(*) as total FROM "PricingPackage"
-  `;
-  const total = Number(rows[0]?.total || 0);
+  const total = await prisma.pricingPackage.count();
   if (total > 0) return;
 
   for (const pkg of DEFAULT_PACKAGES) {
@@ -81,13 +76,10 @@ export async function listPricingPackages(includeInactive = true) {
 
 export async function getPricingPackageById(id: string) {
   await ensureDefaultPricingPackages();
-  const rows = await prisma.$queryRaw<PricingPackageRecord[]>`
-    SELECT id, name, description, priceUSD, credits, isActive, sortOrder, createdAt, updatedAt
-    FROM "PricingPackage"
-    WHERE id = ${id}
-    LIMIT 1
-  `;
-  return rows[0] ? normalizePackage(rows[0]) : null;
+  const pkg = await prisma.pricingPackage.findUnique({
+    where: { id },
+  });
+  return pkg ? normalizePackage(pkg) : null;
 }
 
 export async function createPricingPackage(input: {
@@ -99,20 +91,17 @@ export async function createPricingPackage(input: {
   sortOrder?: number;
 }) {
   const id = randomUUID();
-  await prisma.$executeRaw`
-    INSERT INTO "PricingPackage" (id, name, description, priceUSD, credits, isActive, sortOrder, createdAt, updatedAt)
-    VALUES (
-      ${id},
-      ${input.name},
-      ${input.description ?? null},
-      ${input.priceUSD},
-      ${input.credits},
-      ${input.isActive ?? true},
-      ${input.sortOrder ?? 0},
-      CURRENT_TIMESTAMP,
-      CURRENT_TIMESTAMP
-    )
-  `;
+  await prisma.pricingPackage.create({
+    data: {
+      id,
+      name: input.name,
+      description: input.description ?? null,
+      priceUSD: input.priceUSD,
+      credits: input.credits,
+      isActive: input.isActive ?? true,
+      sortOrder: input.sortOrder ?? 0,
+    },
+  });
   return getPricingPackageById(id);
 }
 
@@ -140,25 +129,16 @@ export async function updatePricingPackage(
     sortOrder: input.sortOrder ?? current.sortOrder,
   };
 
-  await prisma.$executeRaw`
-    UPDATE "PricingPackage"
-    SET
-      name = ${merged.name},
-      description = ${merged.description},
-      priceUSD = ${merged.priceUSD},
-      credits = ${merged.credits},
-      isActive = ${merged.isActive},
-      sortOrder = ${merged.sortOrder},
-      updatedAt = CURRENT_TIMESTAMP
-    WHERE id = ${id}
-  `;
+  await prisma.pricingPackage.update({
+    where: { id },
+    data: merged,
+  });
 
   return getPricingPackageById(id);
 }
 
 export async function deletePricingPackage(id: string) {
-  await prisma.$executeRaw`
-    DELETE FROM "PricingPackage"
-    WHERE id = ${id}
-  `;
+  await prisma.pricingPackage.delete({
+    where: { id },
+  });
 }
