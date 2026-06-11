@@ -40,6 +40,9 @@ function UserDrawer({
     fetcher
   );
   const u = data?.user;
+  const apiKeys = u?.apiKeys ?? [];
+  const connections = u?.connections ?? [];
+  const counts = u?._count ?? { apiKeys: apiKeys.length, connections: connections.length };
   const [credits, setCredits] = useState("");
 
   async function revokeKey(keyId: string) {
@@ -117,8 +120,8 @@ function UserDrawer({
               <div className="grid grid-cols-2 gap-3">
                 <InfoItem label="Role" value={u.role} />
                 <InfoItem label="Status" value={u.isBanned ? "⛔ Banned" : "✅ Active"} />
-                <InfoItem label="API Keys" value={String(u._count.apiKeys)} />
-                <InfoItem label="Connections" value={String(u._count.connections)} />
+                <InfoItem label="API Keys" value={String(counts.apiKeys)} />
+                <InfoItem label="Connections" value={String(counts.connections)} />
                 <InfoItem label="Credits" value={u.credits.toFixed(6)} />
                 <InfoItem label="Joined" value={new Date(u.createdAt).toLocaleDateString()} className="col-span-2" />
               </div>
@@ -166,13 +169,13 @@ function UserDrawer({
               {/* API Keys */}
               <div>
                 <h3 className="text-sm font-bold text-text-muted uppercase tracking-widest mb-3">
-                  API Keys ({u.apiKeys.length})
+                  API Keys ({apiKeys.length})
                 </h3>
-                {u.apiKeys.length === 0 ? (
+                {apiKeys.length === 0 ? (
                   <p className="text-sm text-text-muted italic">No API keys</p>
                 ) : (
                   <div className="space-y-2">
-                    {u.apiKeys.map((k) => (
+                    {apiKeys.map((k) => (
                       <div key={k.id} className="flex items-center justify-between gap-2 bg-bg rounded-xl px-4 py-3 border border-border">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-text-main truncate">{k.name}</p>
@@ -194,13 +197,13 @@ function UserDrawer({
               {/* Connections */}
               <div>
                 <h3 className="text-sm font-bold text-text-muted uppercase tracking-widest mb-3">
-                  AI Connections ({u.connections.length})
+                  AI Connections ({connections.length})
                 </h3>
-                {u.connections.length === 0 ? (
+                {connections.length === 0 ? (
                   <p className="text-sm text-text-muted italic">No connections</p>
                 ) : (
                   <div className="space-y-2">
-                    {u.connections.map((c) => (
+                    {connections.map((c) => (
                       <div key={c.id} className="flex items-center gap-3 bg-bg rounded-xl px-4 py-3 border border-border">
                         <span className="material-symbols-outlined text-[18px] text-text-muted">hub</span>
                         <div className="flex-1 min-w-0">

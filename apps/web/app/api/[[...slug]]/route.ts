@@ -450,6 +450,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
         include: {
           apiKeys: { orderBy: { createdAt: "desc" } },
           connections: { orderBy: { createdAt: "desc" } },
+          _count: { select: { apiKeys: true, connections: true } },
         },
       });
       if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
