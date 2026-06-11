@@ -4,8 +4,42 @@ import {
   createMockPaymentOrder,
   findMockPaymentOrderByExternalId,
 } from "@/lib/mockBilling";
+import prisma from "@/lib/prisma";
 
 const POLAR_WEBHOOK_SECRET = process.env.POLAR_WEBHOOK_SECRET;
+
+function getUserIdFromWorkspaceId(workspaceId: string) {
+  return workspaceId.startsWith("user-") ? workspaceId.slice(5) : workspaceId;
+}
+
+function isPaidPolarEvent(event: any) {
+  if (event?.type === "order.created") return true;
+  if (event?.type === "checkout.updated") {
+    return event?.data?.status === "confirmed" || event?.data?.status === "succeeded";
+  }
+  return false;
+}
+
+function getPolarPaymentId(event: any) {
+  const data = event?.data || {};
+  return String(
+    data.id ||
+      data.order_id ||
+      data.checkout_id ||
+      data.client_secret ||
+      "",
+  );
+}
+
+function getPolarAmountUSD(data: any, metadata: Record<string, any>) {
+  return parseFloat(
+    String(
+      metadata.amountUSD ||
+        (typeof data.amount === "number" ? data.amount / 100 : 0) ||
+        (typeof data.total_amount === "number" ? data.total_amount / 100 : 0),
+    ),
+  );
+}
 
 export async function POST(request: Request) {
   const rawBody = await request.arrayBuffer();
@@ -55,7 +89,7 @@ export async function POST(request: Request) {
 
   try {
     const event = JSON.parse(payload);
-    if (event.type !== "order.created") {
+    if (!isPaidPolarEvent(event)) {
       return NextResponse.json({ success: true });
     }
 
@@ -63,10 +97,8 @@ export async function POST(request: Request) {
     const metadata = orderData.metadata || {};
     const workspaceId = String(metadata.workspaceId || "");
     const creditsNum = parseFloat(String(metadata.credits || "0"));
-    const amountUSDNum = parseFloat(
-      String(metadata.amountUSD || (orderData.amount ? orderData.amount / 100 : 0)),
-    );
-    const polarOrderId = String(orderData.id || "");
+    const amountUSDNum = getPolarAmountUSD(orderData, metadata);
+    const polarOrderId = getPolarPaymentId(event);
 
     if (!workspaceId || !creditsNum) {
       console.warn("[Polar Webhook] Missing metadata");
@@ -79,6 +111,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true });
     }
 
+    const userId = getUserIdFromWorkspaceId(workspaceId);
+
     createMockPaymentOrder({
       workspaceId,
       amountUSD: amountUSDNum,
@@ -89,7 +123,12 @@ export async function POST(request: Request) {
       creditsEarned: creditsNum,
     });
 
-    console.log(`[Polar Webhook] Processed order ${polarOrderId}, added ${creditsNum} credits`);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { credits: { increment: creditsNum } },
+    });
+
+    console.log(`[Polar Webhook] Processed ${event.type} ${polarOrderId}, added ${creditsNum} credits to user ${userId}`);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("[Polar Webhook] Server error", error);

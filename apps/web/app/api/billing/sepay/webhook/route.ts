@@ -3,8 +3,48 @@ import { getSettings } from "@/lib/localDb";
 import {
   findMockPaymentOrderByExternalId,
   findMockPaymentOrderByTransferContent,
+  listMockPaymentOrders,
   markMockPaymentOrderCompleted,
 } from "@/lib/mockBilling";
+import prisma from "@/lib/prisma";
+
+function getUserIdFromWorkspaceId(workspaceId: string) {
+  return workspaceId.startsWith("user-") ? workspaceId.slice(5) : workspaceId;
+}
+
+function normalizeSepayContent(body: Record<string, any>) {
+  return [
+    body.code,
+    body.content,
+    body.description,
+    body.transferContent,
+    body.transactionContent,
+  ]
+    .filter((value) => value != null)
+    .map((value) => String(value))
+    .join(" ");
+}
+
+function getSepayExternalId(body: Record<string, any>, paymentCode: string, transferAmount: number) {
+  const externalId = String(body.id ?? body.referenceCode ?? body.transactionId ?? "").trim();
+  return externalId || `${paymentCode}-${transferAmount}`;
+}
+
+function findSepayOrderFromContent(content: string) {
+  const exact = findMockPaymentOrderByTransferContent(content);
+  if (exact) return exact;
+
+  const normalizedContent = content.toLowerCase();
+  return (
+    listMockPaymentOrders().find(
+      (order) =>
+        order.provider === "sepay" &&
+        order.status === "pending" &&
+        !!order.transferContent &&
+        normalizedContent.includes(order.transferContent.toLowerCase()),
+    ) ?? null
+  );
+}
 
 export async function POST(request: Request) {
   try {
@@ -17,16 +57,16 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const sepayId = String(body.id ?? "");
-    const paymentCode = String(body.code ?? "");
-    const transferAmount = Number(body.transferAmount ?? 0);
+    const paymentCode = normalizeSepayContent(body);
+    const transferAmount = Number(body.transferAmount ?? body.amount ?? 0);
     const transferType = String(body.transferType ?? "");
+    const sepayId = getSepayExternalId(body, paymentCode, transferAmount);
 
-    if (transferType !== "in") {
+    if (transferType && transferType !== "in") {
       return NextResponse.json({ success: true, message: "Ignored out-transfer" });
     }
 
-    const order = findMockPaymentOrderByTransferContent(paymentCode);
+    const order = findSepayOrderFromContent(paymentCode);
     if (!order || order.provider !== "sepay" || order.status !== "pending") {
       console.warn("[SePay Webhook] No pending order for", paymentCode);
       return NextResponse.json({ success: true, message: "Order not found" });
@@ -46,6 +86,7 @@ export async function POST(request: Request) {
 
     const settings = await getSettings();
     const creditsEarned = parseFloat((order.amountUSD * (settings.topupExchangeRate || 1)).toFixed(2));
+    const userId = getUserIdFromWorkspaceId(order.workspaceId);
 
     const updatedOrder = markMockPaymentOrderCompleted(order.id, {
       externalId: sepayId,
@@ -57,7 +98,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: "Order update failed" });
     }
 
-    console.log(`[SePay Webhook] Credited $${creditsEarned} to workspace ${order.workspaceId}`);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { credits: { increment: creditsEarned } },
+    });
+
+    console.log(`[SePay Webhook] Credited $${creditsEarned} to user ${userId}`);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("[SePay Webhook] Error", error);

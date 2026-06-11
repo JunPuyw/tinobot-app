@@ -12,6 +12,17 @@ const SEPAY_BANK_ID = process.env.SEPAY_BANK_ID || "Vietcombank";
 const SEPAY_ACCOUNT_NO = process.env.SEPAY_ACCOUNT_NO || "9999999999";
 const SEPAY_ACCOUNT_NAME = process.env.SEPAY_ACCOUNT_NAME || "TINOBOT PAY";
 
+function getMissingSepayConfig() {
+  return [
+    ["SEPAY_BANK_ID", process.env.SEPAY_BANK_ID],
+    ["SEPAY_ACCOUNT_NO", process.env.SEPAY_ACCOUNT_NO],
+    ["SEPAY_ACCOUNT_NAME", process.env.SEPAY_ACCOUNT_NAME],
+    ["SEPAY_WEBHOOK_KEY", process.env.SEPAY_WEBHOOK_KEY],
+  ]
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+}
+
 function generateTransferCode(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let code = "TINO";
@@ -31,6 +42,15 @@ export async function POST(request: Request) {
   }
 
   try {
+    const missingConfig = getMissingSepayConfig();
+    if (missingConfig.length > 0) {
+      console.error("[SePay Checkout] Missing ENV config:", missingConfig);
+      return NextResponse.json(
+        { error: `SePay is not configured on server. Missing: ${missingConfig.join(", ")}` },
+        { status: 500 },
+      );
+    }
+
     const settings = await getSettings();
     const vndToUsdRate = Number(settings.vndUsdRate || process.env.VND_TO_USD_RATE || 25000);
     const body = await request.json();

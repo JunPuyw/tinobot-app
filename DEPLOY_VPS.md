@@ -36,6 +36,34 @@ ADMIN_EMAILS=admin@example.com
 PLATFORM_UPSTREAMS_JSON=[...]
 ```
 
+For SePay top-up, also configure:
+
+```env
+SEPAY_BANK_ID=VCB
+SEPAY_ACCOUNT_NO=your-bank-account-number
+SEPAY_ACCOUNT_NAME=YOUR ACCOUNT NAME
+SEPAY_WEBHOOK_KEY=use-a-long-random-webhook-key
+VND_TO_USD_RATE=25000
+```
+
+In the SePay dashboard, create a webhook:
+
+```txt
+Webhook URL: https://your-domain.com/api/billing/sepay/webhook
+Authorization header: Apikey use-a-long-random-webhook-key
+```
+
+`SEPAY_BANK_ID` should be the bank code accepted by SePay QR, for example `VCB` for Vietcombank.
+
+For Polar checkout, configure the webhook endpoint in Polar:
+
+```txt
+Webhook URL: https://your-domain.com/api/billing/webhook
+Events: checkout.updated
+```
+
+The app credits the user when Polar sends `checkout.updated` with `status: confirmed`.
+
 ## 3. Start the stack
 
 ```bash
