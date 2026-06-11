@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, PROVIDER_MODELS } from "@/lib/aimodel";
+import { getAdminUser as getSharedAdminUser } from "@/lib/adminUser";
 import { randomBytes } from "node:crypto";
 
 const API_KEY_PREFIX = "sk-tinobot";
@@ -400,8 +401,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 
   // --- ADMIN ROUTES ---
   if (path.startsWith("/admin/")) {
-    const adminUser = await getUser();
-    if (!adminUser || adminUser.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const adminUser = await getSharedAdminUser();
+    if (!adminUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     if (path === "/admin/stats") {
       const [totalUsers, totalKeys, totalConnections, bannedUsers, totalLogs] = await Promise.all([
@@ -620,8 +621,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
   }
 
   if (path.startsWith("/admin/")) {
-    const adminUser = await getUser();
-    if (!adminUser || adminUser.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const adminUser = await getSharedAdminUser();
+    if (!adminUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const userMatch = path.match(/^\/admin\/users\/([^/]+)$/);
     if (userMatch) {
@@ -678,20 +679,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ s
     return NextResponse.json({ success: true });
   }
 
-  async function getAdminUser() {
-    const token = req.cookies.get("auth-token")?.value;
-    if (!token) return null;
-    const user = await prisma.user.findUnique({ where: { id: token } });
-    if (user) {
-      const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim());
-      if (ADMIN_EMAILS.includes(user.email)) user.role = "admin";
-    }
-    return user;
-  }
-
   if (path.startsWith("/admin/")) {
-    const adminUser = await getAdminUser();
-    if (!adminUser || adminUser.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const adminUser = await getSharedAdminUser();
+    if (!adminUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const keyMatch = path.match(/^\/admin\/users\/([^/]+)\/keys\/([^/]+)$/);
     if (keyMatch) {
