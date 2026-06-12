@@ -2,6 +2,7 @@ import { getSettings } from "@/lib/localDb";
 import {
   findMockPaymentOrderByExternalId,
   getMockPaymentOrder,
+  listMockPaymentOrders,
   type MockPaymentOrder,
 } from "@/lib/mockBilling";
 import prisma from "@/lib/prisma";
@@ -13,6 +14,7 @@ type SepayTransaction = {
   reference_number?: string | null;
   code?: string | null;
   transaction_content?: string | null;
+  transaction_date?: string | null;
   content?: string | null;
   amount_in?: string | number | null;
   account_number?: string | null;
@@ -38,6 +40,26 @@ function getTransactionExternalId(transaction: SepayTransaction) {
   return String(transaction.id ?? transaction.reference_number ?? "").trim();
 }
 
+function getTransactionDate(transaction: SepayTransaction) {
+  const value = String(transaction.transaction_date ?? "").trim();
+  if (!value) return null;
+  const date = new Date(value.includes("T") ? value : value.replace(" ", "T"));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toDate(value: Date | string | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function amountMatchesOrder(transaction: SepayTransaction, order: MockPaymentOrder) {
+  return (
+    typeof order.amountVND !== "number" ||
+    Math.abs(order.amountVND - getTransactionAmount(transaction)) <= 10
+  );
+}
+
 function transactionMatchesOrder(transaction: SepayTransaction, order: MockPaymentOrder) {
   const transferContent = order.transferContent?.toLowerCase();
   if (!transferContent) return false;
@@ -49,10 +71,43 @@ function transactionMatchesOrder(transaction: SepayTransaction, order: MockPayme
   ]
     .map(normalizeText)
     .join(" ");
-  const amountMatches =
-    typeof order.amountVND !== "number" ||
-    Math.abs(order.amountVND - getTransactionAmount(transaction)) <= 10;
-  return amountMatches && searchable.includes(transferContent);
+  return amountMatchesOrder(transaction, order) && searchable.includes(transferContent);
+}
+
+function transactionIsInOrderWindow(transaction: SepayTransaction, order: MockPaymentOrder) {
+  if (!amountMatchesOrder(transaction, order)) return false;
+  const transactionDate = getTransactionDate(transaction);
+  const createdAt = toDate(order.createdAt);
+  const expiresAt = toDate(order.expiresAt);
+  if (!transactionDate || !createdAt || !expiresAt) return false;
+
+  const fiveMinutesMs = 5 * 60 * 1000;
+  return (
+    transactionDate.getTime() >= createdAt.getTime() - fiveMinutesMs &&
+    transactionDate.getTime() <= expiresAt.getTime() + fiveMinutesMs
+  );
+}
+
+async function findFallbackOrderForTransaction(transaction: SepayTransaction) {
+  const pendingOrders = (await listMockPaymentOrders()).filter(
+    (entry) =>
+      entry.provider === "sepay" &&
+      entry.status === "pending" &&
+      transactionIsInOrderWindow(transaction, entry),
+  );
+  return pendingOrders.length === 1 ? pendingOrders[0] : null;
+}
+
+async function findMatchingTransaction(order: MockPaymentOrder, transactions: SepayTransaction[]) {
+  const contentMatch = transactions.find((entry) => transactionMatchesOrder(entry, order));
+  if (contentMatch) return contentMatch;
+
+  for (const transaction of transactions) {
+    const fallbackOrder = await findFallbackOrderForTransaction(transaction);
+    if (fallbackOrder?.id === order.id) return transaction;
+  }
+
+  return null;
 }
 
 export async function completeSepayOrderFromTransaction(
@@ -138,7 +193,7 @@ export async function reconcileSepayOrder(order: MockPaymentOrder) {
     orderId: order.id,
     transactionCount: transactions.length,
   });
-  const transaction = transactions.find((entry) => transactionMatchesOrder(entry, order));
+  const transaction = await findMatchingTransaction(order, transactions);
   if (!transaction) {
     console.log("[SePay Reconcile] No matching transaction", {
       orderId: order.id,
