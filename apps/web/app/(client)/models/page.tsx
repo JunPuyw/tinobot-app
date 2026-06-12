@@ -39,21 +39,34 @@ type Model = {
     all_plans?: Record<string, number | null>;
   };
   created?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
-function normalizeModels(data: any): Model[] {
+type PublicSettings = {
+  modelOriginalPriceMultiplier?: number;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeModels(data: unknown): Model[] {
   if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.data)) return data.data;
-  if (Array.isArray(data?.models)) return data.models;
-  if (data?.models && typeof data.models === "object") {
-    return Object.entries(data.models).map(([id, meta]: [string, any]) => ({
+  if (!isRecord(data)) return [];
+  if (Array.isArray(data.data)) return data.data;
+  if (Array.isArray(data.models)) return data.models;
+  if (isRecord(data.models)) {
+    return Object.entries(data.models).map(([id, meta]) => {
+      const modelMeta = isRecord(meta) ? meta : {};
+      return {
       id,
       model: id,
-      name: meta?.name || id,
-      provider: meta?.provider,
-      providerAlias: meta?.providerAlias,
-    }));
+        name: typeof modelMeta.name === "string" ? modelMeta.name : id,
+        provider: typeof modelMeta.provider === "string" ? modelMeta.provider : undefined,
+        providerAlias:
+          typeof modelMeta.providerAlias === "string" ? modelMeta.providerAlias : undefined,
+      };
+    });
   }
   return [];
 }
@@ -104,20 +117,31 @@ function formatReleasedAt(value?: string) {
   return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString("vi-VN");
 }
 
-function formatPlanName(value: string) {
-  return value.replace(/_/g, " ");
-}
-
 function hasValue(value: unknown): value is number | string {
   return value !== null && value !== undefined && value !== "";
+}
+
+function modelHasDiscount(model: Model) {
+  if (hasValue(model.discount?.percent) && Number(model.discount.percent) > 0) {
+    return true;
+  }
+  return Object.values(model.discount?.all_plans || {}).some(
+    (value) => hasValue(value) && Number(value) > 0,
+  );
+}
+
+function shouldShowOriginalPrice(value: number | null | undefined, multiplier: number) {
+  return multiplier > 1 && typeof value === "number" && value > 0;
 }
 
 export default function ModelsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<Model[]>([]);
+  const [modelOriginalPriceMultiplier, setModelOriginalPriceMultiplier] = useState(1);
   const [query, setQuery] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
+  const [discountOnly, setDiscountOnly] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const fetchModels = async () => {
@@ -125,15 +149,26 @@ export default function ModelsPage() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/v1/management/models/text", {
-        cache: "no-store",
-      });
+      const [response, settingsResponse] = await Promise.all([
+        fetch("/api/v1/management/models/text", {
+          cache: "no-store",
+        }),
+        fetch("/api/settings", {
+          cache: "no-store",
+        }),
+      ]);
       if (!response.ok) throw new Error("Failed to fetch models");
 
       const data = await response.json();
       setModels(normalizeModels(data));
-    } catch (err: any) {
-      setError(err.message || "Unknown error");
+      if (settingsResponse.ok) {
+        const settings = (await settingsResponse.json()) as PublicSettings;
+        setModelOriginalPriceMultiplier(
+          Math.max(1, Number(settings.modelOriginalPriceMultiplier || 1)),
+        );
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }
@@ -151,6 +186,11 @@ export default function ModelsPage() {
     return ["all", ...Array.from(providers).sort((a, b) => a.localeCompare(b))];
   }, [models]);
 
+  const discountedCount = useMemo(
+    () => models.filter((model) => modelHasDiscount(model)).length,
+    [models],
+  );
+
   const filteredModels = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     return models.filter((model) => {
@@ -166,9 +206,11 @@ export default function ModelsPage() {
         providerFilter === "all" ||
         (model.provider || "unknown") === providerFilter;
 
-      return matchesKeyword && matchesProvider;
+      const matchesDiscount = !discountOnly || modelHasDiscount(model);
+
+      return matchesKeyword && matchesProvider && matchesDiscount;
     });
-  }, [models, providerFilter, query]);
+  }, [discountOnly, models, providerFilter, query]);
 
   const handleCopy = async (model: Model) => {
     const value = subtitleFromModel(model);
@@ -230,11 +272,19 @@ export default function ModelsPage() {
                 {Math.max(providerOptions.length - 1, 0)}
               </p>
             </div>
+            <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-muted">
+                Discounted
+              </p>
+              <p className="mt-2 text-2xl font-bold text-text-main">
+                {discountedCount}
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_220px_140px]">
+      <section className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_220px_160px_140px]">
         <label className="relative block">
           <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-muted material-symbols-outlined">
             search
@@ -258,6 +308,22 @@ export default function ModelsPage() {
             </option>
           ))}
         </select>
+
+        <button
+          type="button"
+          onClick={() => setDiscountOnly((value) => !value)}
+          className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition ${
+            discountOnly
+              ? "border-amber-400/40 bg-amber-500/15 text-amber-300"
+              : "border-border bg-card text-text-muted hover:border-amber-400/40 hover:text-amber-300"
+          }`}
+          aria-pressed={discountOnly}
+        >
+          <span className="material-symbols-outlined text-[18px]">
+            sell
+          </span>
+          Đang giảm giá
+        </button>
 
         <button
           onClick={fetchModels}
@@ -321,9 +387,12 @@ export default function ModelsPage() {
               {filteredModels.map((model, index) => {
                 const modelId = subtitleFromModel(model);
                 const isCopied = copiedId === modelId;
-                const hasDiscount =
+                const hasDiscount = modelHasDiscount(model);
+                const discountLabel =
                   hasValue(model.discount?.percent) &&
-                  model.discount.percent > 0;
+                  Number(model.discount.percent) > 0
+                    ? `-${model.discount.percent}%`
+                    : "Sale";
                 const hasTags =
                   !!model.provider ||
                   !!model.type ||
@@ -371,7 +440,7 @@ export default function ModelsPage() {
                           </h2>
                           {hasDiscount && (
                             <span className="shrink-0 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-400">
-                              -{model.discount!.percent}%
+                              {discountLabel}
                             </span>
                           )}
                         </div>
@@ -447,6 +516,17 @@ export default function ModelsPage() {
                                 Giá /request
                               </p>
                               <p className="mt-1 text-base font-bold text-primary">
+                                {shouldShowOriginalPrice(
+                                  model.pricing.fixed_price_vnd,
+                                  modelOriginalPriceMultiplier,
+                                ) && (
+                                  <span className="mr-2 text-xs font-medium text-text-muted line-through">
+                                    {formatVnd(
+                                      Number(model.pricing.fixed_price_vnd) *
+                                        modelOriginalPriceMultiplier,
+                                    )}
+                                  </span>
+                                )}
                                 {formatVnd(model.pricing.fixed_price_vnd)}
                               </p>
                             </div>
@@ -464,6 +544,18 @@ export default function ModelsPage() {
                               {hasValue(model.pricing.input) && <div className="flex items-center justify-between">
                                 <span className="text-text-muted">Input</span>
                                 <span className="font-medium text-text-main">
+                                  {shouldShowOriginalPrice(
+                                    model.pricing.input,
+                                    modelOriginalPriceMultiplier,
+                                  ) && (
+                                    <span className="mr-1 text-[10px] font-normal text-text-muted line-through">
+                                      {formatPrice(
+                                        Number(model.pricing.input) *
+                                          modelOriginalPriceMultiplier,
+                                        model.pricing.currency,
+                                      )}
+                                    </span>
+                                  )}
                                   {formatPrice(
                                     model.pricing.input,
                                     model.pricing.currency,
@@ -473,6 +565,18 @@ export default function ModelsPage() {
                               {hasValue(model.pricing.output) && <div className="flex items-center justify-between">
                                 <span className="text-text-muted">Output</span>
                                 <span className="font-medium text-text-main">
+                                  {shouldShowOriginalPrice(
+                                    model.pricing.output,
+                                    modelOriginalPriceMultiplier,
+                                  ) && (
+                                    <span className="mr-1 text-[10px] font-normal text-text-muted line-through">
+                                      {formatPrice(
+                                        Number(model.pricing.output) *
+                                          modelOriginalPriceMultiplier,
+                                        model.pricing.currency,
+                                      )}
+                                    </span>
+                                  )}
                                   {formatPrice(
                                     model.pricing.output,
                                     model.pricing.currency,
@@ -486,6 +590,18 @@ export default function ModelsPage() {
                                       Cache read
                                     </span>
                                     <span className="font-medium text-text-main">
+                                      {shouldShowOriginalPrice(
+                                        model.pricing.cache_read,
+                                        modelOriginalPriceMultiplier,
+                                      ) && (
+                                        <span className="mr-1 text-[10px] font-normal text-text-muted line-through">
+                                          {formatPrice(
+                                            Number(model.pricing.cache_read) *
+                                              modelOriginalPriceMultiplier,
+                                            model.pricing.currency,
+                                          )}
+                                        </span>
+                                      )}
                                       {formatPrice(
                                         model.pricing.cache_read,
                                         model.pricing.currency,
@@ -500,6 +616,18 @@ export default function ModelsPage() {
                                       Cache write
                                     </span>
                                     <span className="font-medium text-text-main">
+                                      {shouldShowOriginalPrice(
+                                        model.pricing.cache_write,
+                                        modelOriginalPriceMultiplier,
+                                      ) && (
+                                        <span className="mr-1 text-[10px] font-normal text-text-muted line-through">
+                                          {formatPrice(
+                                            Number(model.pricing.cache_write) *
+                                              modelOriginalPriceMultiplier,
+                                            model.pricing.currency,
+                                          )}
+                                        </span>
+                                      )}
                                       {formatPrice(
                                         model.pricing.cache_write,
                                         model.pricing.currency,
@@ -514,6 +642,18 @@ export default function ModelsPage() {
                                       Reasoning
                                     </span>
                                     <span className="font-medium text-text-main">
+                                      {shouldShowOriginalPrice(
+                                        model.pricing.reasoning,
+                                        modelOriginalPriceMultiplier,
+                                      ) && (
+                                        <span className="mr-1 text-[10px] font-normal text-text-muted line-through">
+                                          {formatPrice(
+                                            Number(model.pricing.reasoning) *
+                                              modelOriginalPriceMultiplier,
+                                            model.pricing.currency,
+                                          )}
+                                        </span>
+                                      )}
                                       {formatPrice(
                                         model.pricing.reasoning,
                                         model.pricing.currency,

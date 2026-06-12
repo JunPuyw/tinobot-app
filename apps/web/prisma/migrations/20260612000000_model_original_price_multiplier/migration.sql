@@ -1,0 +1,2 @@
+ALTER TABLE "GatewaySetting"
+ADD COLUMN IF NOT EXISTS "modelOriginalPriceMultiplier" DOUBLE PRECISION NOT NULL DEFAULT 1;
