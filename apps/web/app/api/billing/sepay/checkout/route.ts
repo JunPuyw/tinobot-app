@@ -11,6 +11,41 @@ import { getPortalUser } from "@/lib/userAuth";
 const SEPAY_BANK_ID = process.env.SEPAY_BANK_ID || "Vietcombank";
 const SEPAY_ACCOUNT_NO = process.env.SEPAY_ACCOUNT_NO || "9999999999";
 const SEPAY_ACCOUNT_NAME = process.env.SEPAY_ACCOUNT_NAME || "TINOBOT PAY";
+const SEPAY_API_BASE_URL = process.env.SEPAY_API_BASE_URL || "https://my.sepay.vn/userapi";
+const SEPAY_VA_PROVIDER_PATH = process.env.SEPAY_VA_PROVIDER_PATH || "bidv";
+
+type CheckoutRequestBody = {
+  workspaceId?: string;
+  packageId?: string;
+  customAmountUSD?: string | number;
+  customAmountVND?: string | number;
+};
+
+type PortalUser = {
+  id: string;
+  workspaceId?: string;
+};
+
+type SepayVaOrderData = {
+  order_id?: string;
+  order_code?: string;
+  va_number?: string;
+  va_holder_name?: string;
+  amount?: number;
+  status?: string;
+  bank_name?: string;
+  account_holder_name?: string;
+  account_number?: string;
+  expired_at?: string;
+  qr_code_url?: string;
+  qr_code?: string;
+};
+
+type SepayVaOrderResponse = {
+  status?: string;
+  message?: string;
+  data?: SepayVaOrderData;
+};
 
 function getMissingSepayConfig() {
   return [
@@ -23,6 +58,19 @@ function getMissingSepayConfig() {
     .map(([key]) => key);
 }
 
+function getMissingSepayVaConfig() {
+  return [
+    ["SEPAY_API_TOKEN", process.env.SEPAY_API_TOKEN],
+    ["SEPAY_VA_BANK_ACCOUNT_ID", process.env.SEPAY_VA_BANK_ACCOUNT_ID],
+  ]
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+}
+
+function isSepayVaEnabled() {
+  return getMissingSepayVaConfig().length === 0;
+}
+
 function generateTransferCode(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let code = "TINO";
@@ -32,12 +80,53 @@ function generateTransferCode(): string {
   return code;
 }
 
+function parseSepayDate(value?: string) {
+  if (!value) return null;
+  const normalized = value.includes("T") ? value : value.replace(" ", "T");
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function createSepayVaOrder(amountVND: number, transferContent: string) {
+  const bankAccountId = process.env.SEPAY_VA_BANK_ACCOUNT_ID;
+  const apiToken = process.env.SEPAY_API_TOKEN;
+  if (!bankAccountId || !apiToken) return null;
+
+  const response = await fetch(
+    `${SEPAY_API_BASE_URL}/${SEPAY_VA_PROVIDER_PATH}/${encodeURIComponent(bankAccountId)}/orders`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount: amountVND,
+        order_code: transferContent,
+        duration: 15 * 60,
+        with_qrcode: true,
+      }),
+    },
+  );
+
+  const payload = (await response.json().catch(() => null)) as SepayVaOrderResponse | null;
+  if (!response.ok || payload?.status !== "success" || !payload.data) {
+    console.error("[SePay Checkout] VA order create failed", {
+      status: response.status,
+      message: payload?.message,
+    });
+    throw new Error(payload?.message || `Failed to create SePay VA order (${response.status})`);
+  }
+
+  return payload.data;
+}
+
 export async function POST(request: Request) {
-  const user = await getPortalUser();
+  const user = (await getPortalUser()) as PortalUser | null;
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await request.json();
-  const workspaceId = request.headers.get("X-Workspace-Id") || body.workspaceId || (user as any).workspaceId || `user-${user.id}`;
+  const body = (await request.json()) as CheckoutRequestBody;
+  const workspaceId = request.headers.get("X-Workspace-Id") || body.workspaceId || user.workspaceId || `user-${user.id}`;
   if (!workspaceId) {
     return NextResponse.json({ error: "Workspace required" }, { status: 400 });
   }
@@ -88,8 +177,14 @@ export async function POST(request: Request) {
       transferContent = generateTransferCode();
     }
 
-    const qrUrl = `https://qr.sepay.vn/img?acc=${SEPAY_ACCOUNT_NO}&bank=${encodeURIComponent(SEPAY_BANK_ID)}&amount=${amountVND}&des=${encodeURIComponent(transferContent)}&template=compact`;
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    const sepayVaOrder = isSepayVaEnabled()
+      ? await createSepayVaOrder(amountVND, transferContent)
+      : null;
+    const qrUrl =
+      sepayVaOrder?.qr_code_url ||
+      sepayVaOrder?.qr_code ||
+      `https://qr.sepay.vn/img?acc=${SEPAY_ACCOUNT_NO}&bank=${encodeURIComponent(SEPAY_BANK_ID)}&amount=${amountVND}&des=${encodeURIComponent(transferContent)}&template=compact`;
+    const expiresAt = parseSepayDate(sepayVaOrder?.expired_at) || new Date(Date.now() + 15 * 60 * 1000);
 
     await expireOldMockOrders(workspaceId);
 
@@ -102,9 +197,9 @@ export async function POST(request: Request) {
       status: "pending",
       transferContent,
       qrUrl,
-      bankId: SEPAY_BANK_ID,
-      accountNo: SEPAY_ACCOUNT_NO,
-      accountName: SEPAY_ACCOUNT_NAME,
+      bankId: sepayVaOrder?.bank_name || SEPAY_BANK_ID,
+      accountNo: sepayVaOrder?.va_number || sepayVaOrder?.account_number || SEPAY_ACCOUNT_NO,
+      accountName: sepayVaOrder?.va_holder_name || sepayVaOrder?.account_holder_name || SEPAY_ACCOUNT_NAME,
       expiresAt,
       creditsEarned: null,
     });
@@ -124,8 +219,9 @@ export async function POST(request: Request) {
         createdAt: order.createdAt,
       },
     });
-  } catch (err: any) {
-    console.error("[POST create-order] Error:", err.message);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to create SePay order";
+    console.error("[POST create-order] Error:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

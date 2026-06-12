@@ -8,7 +8,17 @@
       "outputs": [".next/**", "!.next/cache/**"]
     },
     "lint": {
-      "env": ["SEPAY_ACCOUNT_NAME", "SEPAY_WEBHOOK_KEY", "VND_TO_USD_RATE", "SEPAY_ACCOUNT_NO", "SEPAY_BANK_ID"],
+      "env": [
+        "SEPAY_ACCOUNT_NAME",
+        "SEPAY_WEBHOOK_KEY",
+        "VND_TO_USD_RATE",
+        "SEPAY_ACCOUNT_NO",
+        "SEPAY_BANK_ID",
+        "SEPAY_API_TOKEN",
+        "SEPAY_VA_BANK_ACCOUNT_ID",
+        "SEPAY_VA_PROVIDER_PATH",
+        "SEPAY_API_BASE_URL"
+      ],
       "dependsOn": ["^lint"]
     },
     "check-types": {
