@@ -48,7 +48,7 @@ SEPAY_API_TOKEN=your-sepay-api-token
 VND_TO_USD_RATE=25000
 ```
 
-For Vietinbank, use `SEPAY_BANK_ID=ICB`. When `SEPAY_API_TOKEN` is set, the order polling endpoint also checks SePay transactions and completes matching pending orders if the webhook is delayed or not delivered.
+For VietinBank, the generated transfer description starts with `SEVQR` and includes the order code, for example `SEVQR TINO123ABC`. This prefix is required for SePay to receive VietinBank balance-change notifications. When `SEPAY_API_TOKEN` is set, the order polling endpoint also checks SePay transactions and completes matching pending orders if the webhook is delayed or not delivered.
 
 Only set `SEPAY_VA_BANK_ACCOUNT_ID` and `SEPAY_VA_PROVIDER_PATH=bidv` when SePay has enabled the BIDV VA/order API for your account. Do not set `SEPAY_VA_BANK_ACCOUNT_ID` to a normal bank account number.
 

@@ -198,7 +198,7 @@ export async function POST(request: Request) {
     const qrUrl =
       sepayVaOrder?.qr_code_url ||
       sepayVaOrder?.qr_code ||
-      `https://qr.sepay.vn/img?bank=${encodeURIComponent(getSepayQrBankId(SEPAY_BANK_ID))}&acc=${SEPAY_ACCOUNT_NO}&template=${encodeURIComponent(SEPAY_QR_TEMPLATE)}&amount=${amountVND}&des=${encodeURIComponent(transferContent)}`;
+      `https://qr.sepay.vn/img?bank=${encodeURIComponent(getSepayQrBankId(SEPAY_BANK_ID))}&acc=${SEPAY_ACCOUNT_NO}&template=${encodeURIComponent(SEPAY_QR_TEMPLATE)}&amount=${amountVND}&des=${encodeURIComponent(`SEVQR ${transferContent}`)}`;
     const expiresAt = parseSepayDate(sepayVaOrder?.expired_at) || new Date(Date.now() + 15 * 60 * 1000);
 
     await expireOldMockOrders(workspaceId);
