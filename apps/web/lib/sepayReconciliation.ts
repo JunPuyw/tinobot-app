@@ -81,10 +81,9 @@ function transactionIsInOrderWindow(transaction: SepayTransaction, order: MockPa
   const expiresAt = toDate(order.expiresAt);
   if (!transactionDate || !createdAt || !expiresAt) return false;
 
-  const fiveMinutesMs = 5 * 60 * 1000;
   return (
-    transactionDate.getTime() >= createdAt.getTime() - fiveMinutesMs &&
-    transactionDate.getTime() <= expiresAt.getTime() + fiveMinutesMs
+    transactionDate.getTime() >= createdAt.getTime() &&
+    transactionDate.getTime() <= expiresAt.getTime()
   );
 }
 

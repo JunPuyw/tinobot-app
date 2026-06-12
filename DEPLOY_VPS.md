@@ -42,6 +42,7 @@ For SePay top-up, also configure:
 SEPAY_BANK_ID=ICB
 SEPAY_ACCOUNT_NO=your-bank-account-number
 SEPAY_ACCOUNT_NAME=YOUR ACCOUNT NAME
+SEPAY_QR_TEMPLATE=qronly
 SEPAY_WEBHOOK_KEY=use-a-long-random-webhook-key
 SEPAY_API_TOKEN=your-sepay-api-token
 VND_TO_USD_RATE=25000
