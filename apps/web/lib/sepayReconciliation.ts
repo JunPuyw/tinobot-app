@@ -94,12 +94,27 @@ export async function completeSepayOrderFromTransaction(
 
 export async function reconcileSepayOrder(order: MockPaymentOrder) {
   const apiToken = process.env.SEPAY_API_TOKEN;
-  if (!apiToken || order.provider !== "sepay" || order.status !== "pending") return order;
+  if (!apiToken || order.provider !== "sepay" || order.status !== "pending") {
+    console.log("[SePay Reconcile] Skipped", {
+      orderId: order.id,
+      hasApiToken: !!apiToken,
+      provider: order.provider,
+      status: order.status,
+    });
+    return order;
+  }
 
   const params = new URLSearchParams();
   if (process.env.SEPAY_ACCOUNT_NO) params.set("account_number", process.env.SEPAY_ACCOUNT_NO);
   if (typeof order.amountVND === "number") params.set("amount_in", String(order.amountVND));
   params.set("limit", "20");
+
+  console.log("[SePay Reconcile] Lookup start", {
+    orderId: order.id,
+    transferContent: order.transferContent,
+    amountVND: order.amountVND,
+    accountNumber: process.env.SEPAY_ACCOUNT_NO ? "set" : "missing",
+  });
 
   const response = await fetch(`${SEPAY_API_BASE_URL}/transactions/list?${params.toString()}`, {
     headers: {
@@ -118,9 +133,25 @@ export async function reconcileSepayOrder(order: MockPaymentOrder) {
   }
 
   const payload = (await response.json().catch(() => null)) as SepayTransactionsResponse | null;
-  const transaction = payload?.transactions?.find((entry) => transactionMatchesOrder(entry, order));
-  if (!transaction) return order;
+  const transactions = payload?.transactions || [];
+  console.log("[SePay Reconcile] Lookup complete", {
+    orderId: order.id,
+    transactionCount: transactions.length,
+  });
+  const transaction = transactions.find((entry) => transactionMatchesOrder(entry, order));
+  if (!transaction) {
+    console.log("[SePay Reconcile] No matching transaction", {
+      orderId: order.id,
+      transferContent: order.transferContent,
+    });
+    return order;
+  }
 
   const completedOrder = await completeSepayOrderFromTransaction(order, transaction);
+  console.log("[SePay Reconcile] Matched transaction", {
+    orderId: order.id,
+    completed: !!completedOrder,
+    externalId: getTransactionExternalId(transaction),
+  });
   return completedOrder || order;
 }
