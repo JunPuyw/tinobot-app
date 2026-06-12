@@ -13,6 +13,11 @@ const SEPAY_ACCOUNT_NO = process.env.SEPAY_ACCOUNT_NO || "9999999999";
 const SEPAY_ACCOUNT_NAME = process.env.SEPAY_ACCOUNT_NAME || "TINOBOT PAY";
 const SEPAY_API_BASE_URL = process.env.SEPAY_API_BASE_URL || "https://my.sepay.vn/userapi";
 const SEPAY_VA_PROVIDER_PATH = process.env.SEPAY_VA_PROVIDER_PATH || "bidv";
+const SEPAY_QR_BANK_ALIASES: Record<string, string> = {
+  vietinbank: "ICB",
+  vietin: "ICB",
+  icb: "ICB",
+};
 
 type CheckoutRequestBody = {
   workspaceId?: string;
@@ -68,7 +73,12 @@ function getMissingSepayVaConfig() {
 }
 
 function isSepayVaEnabled() {
-  return getMissingSepayVaConfig().length === 0;
+  return getMissingSepayVaConfig().length === 0 && SEPAY_VA_PROVIDER_PATH.toLowerCase() === "bidv";
+}
+
+function getSepayQrBankId(bankId: string) {
+  const normalized = bankId.trim().toLowerCase();
+  return SEPAY_QR_BANK_ALIASES[normalized] || bankId;
 }
 
 function generateTransferCode(): string {
@@ -187,7 +197,7 @@ export async function POST(request: Request) {
     const qrUrl =
       sepayVaOrder?.qr_code_url ||
       sepayVaOrder?.qr_code ||
-      `https://qr.sepay.vn/img?acc=${SEPAY_ACCOUNT_NO}&bank=${encodeURIComponent(SEPAY_BANK_ID)}&amount=${amountVND}&des=${encodeURIComponent(transferContent)}&template=compact`;
+      `https://qr.sepay.vn/img?acc=${SEPAY_ACCOUNT_NO}&bank=${encodeURIComponent(getSepayQrBankId(SEPAY_BANK_ID))}&amount=${amountVND}&des=${encodeURIComponent(transferContent)}&template=compact`;
     const expiresAt = parseSepayDate(sepayVaOrder?.expired_at) || new Date(Date.now() + 15 * 60 * 1000);
 
     await expireOldMockOrders(workspaceId);

@@ -39,17 +39,17 @@ PLATFORM_UPSTREAMS_JSON=[...]
 For SePay top-up, also configure:
 
 ```env
-SEPAY_BANK_ID=VCB
+SEPAY_BANK_ID=ICB
 SEPAY_ACCOUNT_NO=your-bank-account-number
 SEPAY_ACCOUNT_NAME=YOUR ACCOUNT NAME
 SEPAY_WEBHOOK_KEY=use-a-long-random-webhook-key
 SEPAY_API_TOKEN=your-sepay-api-token
-SEPAY_VA_BANK_ACCOUNT_ID=your-sepay-bank-account-id
-SEPAY_VA_PROVIDER_PATH=bidv
 VND_TO_USD_RATE=25000
 ```
 
-When `SEPAY_API_TOKEN` and `SEPAY_VA_BANK_ACCOUNT_ID` are set, SePay checkout creates a SePay VA/order and uses the QR returned by SePay. Without them, checkout falls back to a static QR image URL.
+For Vietinbank, use `SEPAY_BANK_ID=ICB`. When `SEPAY_API_TOKEN` is set, the order polling endpoint also checks SePay transactions and completes matching pending orders if the webhook is delayed or not delivered.
+
+Only set `SEPAY_VA_BANK_ACCOUNT_ID` and `SEPAY_VA_PROVIDER_PATH=bidv` when SePay has enabled the BIDV VA/order API for your account. Do not set `SEPAY_VA_BANK_ACCOUNT_ID` to a normal bank account number.
 
 In the SePay dashboard, create a webhook:
 

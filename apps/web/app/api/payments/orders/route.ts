@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMockPaymentOrder, listMockPaymentOrders } from "@/lib/mockBilling";
+import { reconcileSepayOrder } from "@/lib/sepayReconciliation";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -10,7 +11,8 @@ export async function GET(request: NextRequest) {
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
-    return NextResponse.json({ order });
+    const reconciledOrder = await reconcileSepayOrder(order);
+    return NextResponse.json({ order: reconciledOrder });
   }
 
   const workspaceId = searchParams.get("workspaceId") ?? undefined;
