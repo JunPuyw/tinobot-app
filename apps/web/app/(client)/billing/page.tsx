@@ -478,7 +478,7 @@ export default function BillingPage() {
           <span className="material-symbols-outlined">account_balance</span>
           Bank Transfer (VND)
         </button>
-        <button
+        {/* <button
           onClick={() => setPaymentMethod("polar")}
           className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-all active:scale-[0.98] sm:px-6 ${paymentMethod === "polar"
             ? "bg-primary text-white shadow-lg shadow-primary/20"
@@ -487,7 +487,7 @@ export default function BillingPage() {
         >
           <span className="material-symbols-outlined">credit_card</span>
           International Card (USD)
-        </button>
+        </button> */}
       </div>
 
       <CreditOverview
