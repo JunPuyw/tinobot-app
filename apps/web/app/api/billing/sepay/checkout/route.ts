@@ -87,6 +87,10 @@ function parseSepayDate(value?: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function parseAmount(value: string | number) {
+  return typeof value === "number" ? value : parseFloat(value);
+}
+
 async function createSepayVaOrder(amountVND: number, transferContent: string) {
   const bankAccountId = process.env.SEPAY_VA_BANK_ACCOUNT_ID;
   const apiToken = process.env.SEPAY_API_TOKEN;
@@ -155,11 +159,11 @@ export async function POST(request: Request) {
       amountUSD = pkg.priceUSD;
       amountVND = Math.round(amountUSD * vndToUsdRate);
     } else if (body.customAmountUSD) {
-      amountUSD = parseFloat(body.customAmountUSD);
+      amountUSD = parseAmount(body.customAmountUSD);
       amountVND = Math.max(10_000, Math.round(amountUSD * vndToUsdRate));
       amountUSD = parseFloat((amountVND / vndToUsdRate).toFixed(2));
     } else if (body.customAmountVND) {
-      amountVND = Math.max(10_000, parseInt(body.customAmountVND, 10));
+      amountVND = Math.max(10_000, Math.trunc(parseAmount(body.customAmountVND)));
       amountUSD = parseFloat((amountVND / vndToUsdRate).toFixed(2));
     } else {
       return NextResponse.json(
