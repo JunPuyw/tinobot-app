@@ -77,3 +77,19 @@ body {
     background-clip: content-box;
   }
 }
+
+
+
+.smooth-float {
+  animation: smoothFloat 3s ease-in-out infinite;
+}
+
+@keyframes smoothFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-12px);
+  }
+}

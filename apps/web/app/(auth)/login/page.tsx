@@ -88,7 +88,7 @@ function LoginContent() {
     <div className="w-full max-w-md relative z-10 transition-all duration-300 animate-in fade-in slide-in-from-bottom-8">
       <div className="text-center mb-10">
         <div className="w-52 h-52  rounded-2xl flex items-center justify-center mx-auto  shadow-golden smooth-float">
-          <Image src="/icons/dragon-mascot.png" alt="Logo" width={48} height={48} className="w-full h-full object-contain" />
+          <img src="/icons/dragon-mascot.png" alt="Logo" width={48} height={48} className="w-full h-full object-contain" />
         </div>
         <h1 className="text-4xl font-bold tracking-tight mb-2 text-gradient-gold">{translate("User Portal")}</h1>
         <p className="text-muted-foreground font-medium opacity-80">{translate("Login to manage your API Keys")}</p>
