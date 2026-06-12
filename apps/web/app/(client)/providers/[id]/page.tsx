@@ -792,7 +792,7 @@ export default function ProviderDetailPage() {
       }));
 
     return (
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 p-2">
         {displayModels.map((model) => {
           const fullModel = `${providerStorageAlias}/${model.id}`;
           const oldFormatModel = `${providerId}/${model.id}`;
@@ -975,7 +975,7 @@ export default function ProviderDetailPage() {
 
       {isCompatible && providerNode && (
         <Card>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 p-2">
             <div>
               <h2 className="text-lg font-semibold">{isAnthropicCompatible ? "Anthropic Compatible Details" : "OpenAI Compatible Details"}</h2>
               <p className="text-sm text-text-muted">

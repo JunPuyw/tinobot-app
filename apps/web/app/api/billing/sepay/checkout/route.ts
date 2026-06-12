@@ -3,7 +3,9 @@ import { getSettings } from "@/lib/localDb";
 import {
   createMockPaymentOrder,
   expireOldMockOrders,
+  findReusableSepayPaymentOrder,
   listMockPaymentOrders,
+  serializePaymentOrder,
 } from "@/lib/mockBilling";
 import { getPricingPackageById } from "@/lib/pricingPackages";
 import { getPortalUser } from "@/lib/userAuth";
@@ -183,6 +185,13 @@ export async function POST(request: Request) {
       );
     }
 
+    await expireOldMockOrders(workspaceId);
+
+    const reusableOrder = await findReusableSepayPaymentOrder(workspaceId, amountVND);
+    if (reusableOrder) {
+      return NextResponse.json({ order: serializePaymentOrder(reusableOrder), reused: true });
+    }
+
     let transferContent = generateTransferCode();
     for (let attempts = 0; attempts < 5; attempts++) {
       const existing = (await listMockPaymentOrders()).find(
@@ -201,8 +210,6 @@ export async function POST(request: Request) {
       `https://qr.sepay.vn/img?bank=${encodeURIComponent(getSepayQrBankId(SEPAY_BANK_ID))}&acc=${SEPAY_ACCOUNT_NO}&template=${encodeURIComponent(SEPAY_QR_TEMPLATE)}&amount=${amountVND}&des=${encodeURIComponent(`SEVQR ${transferContent}`)}`;
     const expiresAt = parseSepayDate(sepayVaOrder?.expired_at) || new Date(Date.now() + 15 * 60 * 1000);
 
-    await expireOldMockOrders(workspaceId);
-
     const order = await createMockPaymentOrder({
       workspaceId,
       userId: user.id,
@@ -219,21 +226,7 @@ export async function POST(request: Request) {
       creditsEarned: null,
     });
 
-    return NextResponse.json({
-      order: {
-        id: order.id,
-        amountVND: order.amountVND,
-        amountUSD: order.amountUSD,
-        transferContent: order.transferContent,
-        status: order.status,
-        qrUrl: order.qrUrl,
-        bankId: order.bankId,
-        accountNo: order.accountNo,
-        accountName: order.accountName,
-        expiresAt: order.expiresAt,
-        createdAt: order.createdAt,
-      },
-    });
+    return NextResponse.json({ order: serializePaymentOrder(order), reused: false });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to create SePay order";
     console.error("[POST create-order] Error:", message);

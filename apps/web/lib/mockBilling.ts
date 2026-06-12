@@ -20,11 +20,32 @@ export type MockPaymentOrder = {
   creditsEarned?: number | null;
 };
 
-function normalizeOrder(order: any): MockPaymentOrder {
+type PaymentOrderRecord = Omit<MockPaymentOrder, "provider" | "status"> & {
+  provider: string;
+  status: string;
+};
+
+function normalizeOrder(order: PaymentOrderRecord): MockPaymentOrder {
   return {
     ...order,
     provider: order.provider as "sepay" | "polar",
     status: order.status as "pending" | "completed" | "expired",
+  };
+}
+
+export function serializePaymentOrder(order: MockPaymentOrder) {
+  return {
+    id: order.id,
+    amountVND: order.amountVND,
+    amountUSD: order.amountUSD,
+    transferContent: order.transferContent,
+    status: order.status,
+    qrUrl: order.qrUrl,
+    bankId: order.bankId,
+    accountNo: order.accountNo,
+    accountName: order.accountName,
+    expiresAt: order.expiresAt,
+    createdAt: order.createdAt,
   };
 }
 
@@ -47,6 +68,20 @@ export async function listMockPaymentOrders(workspaceId?: string) {
     orderBy: { createdAt: "desc" },
   });
   return orders.map(normalizeOrder);
+}
+
+export async function findReusableSepayPaymentOrder(workspaceId: string, amountVND: number) {
+  const order = await prisma.paymentOrder.findFirst({
+    where: {
+      workspaceId,
+      provider: "sepay",
+      status: "pending",
+      amountVND,
+      expiresAt: { gt: new Date(Date.now() + 30 * 1000) },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  return order ? normalizeOrder(order) : null;
 }
 
 export async function getMockPaymentOrder(orderId: string) {
