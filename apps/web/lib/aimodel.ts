@@ -1,11 +1,11 @@
 export const FREE_PROVIDERS = {
-  kiro: {
-    id: "kiro",
-    alias: "kr",
-    name: "Kiro AI",
-    icon: "psychology_alt",
-    color: "#FF6B35",
-  },
+  // kiro: {
+  //   id: "kiro",
+  //   alias: "kr",
+  //   name: "Kiro AI",
+  //   icon: "psychology_alt",
+  //   color: "#FF6B35",
+  // },
   qwen: {
     id: "qwen",
     alias: "qw",
@@ -629,19 +629,19 @@ export const PROVIDER_MODELS = {
     { id: "grok-code-fast-1", name: "Grok Code Fast 1" },
     { id: "oswe-vscode-prime", name: "Raptor Mini" },
   ],
-  kr: [
-    // Kiro AI
-    // { id: "claude-opus-4.5", name: "Claude Opus 4.5" },
-    { id: "claude-sonnet-4.5", name: "Claude Sonnet 4.5" },
-    { id: "claude-haiku-4.5", name: "Claude Haiku 4.5" },
-    { id: "deepseek-3.2", name: "DeepSeek 3.2", strip: ["image", "audio"] },
-    { id: "deepseek-3.1", name: "DeepSeek 3.1", strip: ["image", "audio"] },
-    {
-      id: "qwen3-coder-next",
-      name: "Qwen3 Coder Next",
-      strip: ["image", "audio"],
-    },
-  ],
+  // kr: [
+  //   // Kiro AI
+  //   // { id: "claude-opus-4.5", name: "Claude Opus 4.5" },
+  //   { id: "claude-sonnet-4.5", name: "Claude Sonnet 4.5" },
+  //   { id: "claude-haiku-4.5", name: "Claude Haiku 4.5" },
+  //   { id: "deepseek-3.2", name: "DeepSeek 3.2", strip: ["image", "audio"] },
+  //   { id: "deepseek-3.1", name: "DeepSeek 3.1", strip: ["image", "audio"] },
+  //   {
+  //     id: "qwen3-coder-next",
+  //     name: "Qwen3 Coder Next",
+  //     strip: ["image", "audio"],
+  //   },
+  // ],
   cu: [
     // Cursor IDE
     { id: "default", name: "Auto (Server Picks)" },
