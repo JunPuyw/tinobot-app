@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 const Card = ({ children, className, padding }: any) => (
   <div className={`rounded-2xl border bg-card shadow-sm ${className || "border-border"} ${padding === "xs" ? "p-3" : padding === "md" ? "p-6" : padding === "none" ? "" : "p-6"}`}>
     {children}
@@ -295,70 +295,107 @@ export default function UserCombosPage() {
 
 function ComboCard({ combo, copied, onCopy, onEdit, onDelete }: any) {
   return (
-    <Card padding="md" className="group border border-border/50 hover:border-primary/40 hover:bg-primary/[0.01] transition-all relative overflow-hidden shadow-sm hover:shadow-md">
-      <div className="flex items-center justify-between relative z-10">
-        <div className="flex items-center gap-5 flex-1 min-w-0">
-          <div className="size-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform">
-            <span className="material-symbols-outlined text-[24px]">layers</span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 mb-1.5">
-              <code className="text-base font-bold font-mono text-text-main truncate">{combo.name}</code>
-              <Badge variant="default" className="text-[10px] uppercase tracking-tighter py-0">Combo</Badge>
-            </div>
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              {combo.models.length === 0 ? (
-                <span className="text-xs text-text-muted italic">No fallback models defined</span>
-              ) : (
-                combo.models.map((model: any, index: number) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 bg-surface/50 px-2.5 py-1 rounded-lg border border-border shadow-xs">
-                      <span className="text-[10px] font-bold text-text-muted">{index + 1}</span>
-                      <code className="text-xs font-mono text-text-main">
-                        {model}
-                      </code>
-                    </div>
-                    {index < combo.models.length - 1 && (
-                      <span className="material-symbols-outlined text-[16px] text-text-muted opacity-50">arrow_forward</span>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+<Card
+  padding="md"
+  className="group border border-border/50 hover:border-primary/40 hover:bg-primary/[0.01] transition-all relative overflow-hidden shadow-sm hover:shadow-md"
+>
+  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative z-10">
+    {/* Left Content */}
+    <div className="flex items-start gap-4 flex-1 min-w-0">
+      <div className="size-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform">
+        <span className="material-symbols-outlined text-[24px]">
+          layers
+        </span>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <code className="text-sm md:text-base font-bold font-mono text-text-main truncate block max-w-full">
+            {combo.name}
+          </code>
+
+          <Badge
+            variant="default"
+            className="text-[10px] uppercase tracking-tighter py-0 shrink-0"
+          >
+            Combo
+          </Badge>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-3 shrink-0 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => onCopy(combo.name, `combo-${combo.id}`)}
-            className="flex flex-col items-center p-2 rounded-xl hover:bg-primary/10 text-text-muted hover:text-primary transition-all"
-            title="Copy combo name"
-          >
-            <span className="material-symbols-outlined text-[20px]">
-              {copied === `combo-${combo.id}` ? "check" : "content_copy"}
+        <div className="flex flex-wrap items-center gap-2">
+          {combo.models.length === 0 ? (
+            <span className="text-xs text-text-muted italic">
+              No fallback models defined
             </span>
-            <span className="text-[9px] font-bold uppercase mt-0.5">Copy</span>
-          </button>
-          <button
-            onClick={onEdit}
-            className="flex flex-col items-center p-2 rounded-xl hover:bg-primary/10 text-text-muted hover:text-primary transition-all"
-            title="Edit"
-          >
-            <span className="material-symbols-outlined text-[20px]">edit</span>
-            <span className="text-[9px] font-bold uppercase mt-0.5">Edit</span>
-          </button>
-          <button
-            onClick={onDelete}
-            className="flex flex-col items-center p-2 rounded-xl hover:bg-red-500/10 text-text-muted hover:text-red-500 transition-all font-bold"
-            title="Delete"
-          >
-            <span className="material-symbols-outlined text-[20px]">delete</span>
-            <span className="text-[9px] uppercase mt-0.5">Del</span>
-          </button>
+          ) : (
+            combo.models.map((model: any, index: number) => (
+              <React.Fragment key={index}>
+                <div className="flex items-center gap-1.5 bg-surface/50 px-2 py-1 rounded-lg border border-border shadow-xs max-w-full">
+                  <span className="text-[10px] font-bold text-text-muted shrink-0">
+                    {index + 1}
+                  </span>
+
+                  <code className="text-xs font-mono text-text-main truncate">
+                    {model}
+                  </code>
+                </div>
+
+                {index < combo.models.length - 1 && (
+                  <span className="material-symbols-outlined text-[14px] text-text-muted opacity-50 hidden sm:block">
+                    arrow_forward
+                  </span>
+                )}
+              </React.Fragment>
+            ))
+          )}
         </div>
       </div>
-    </Card>
+    </div>
+
+    {/* Actions */}
+    <div className="flex items-center justify-end gap-2 md:gap-3 shrink-0 border-t md:border-0 pt-3 md:pt-0">
+      <button
+        onClick={() => onCopy(combo.name, `combo-${combo.id}`)}
+        className="flex items-center gap-1 px-3 py-2 rounded-xl hover:bg-primary/10 text-text-muted hover:text-primary transition-all"
+        title="Copy combo name"
+      >
+        <span className="material-symbols-outlined text-[18px]">
+          {copied === `combo-${combo.id}` ? "check" : "content_copy"}
+        </span>
+        <span className="text-xs font-medium">
+          Copy
+        </span>
+      </button>
+
+      <button
+        onClick={onEdit}
+        className="flex items-center gap-1 px-3 py-2 rounded-xl hover:bg-primary/10 text-text-muted hover:text-primary transition-all"
+        title="Edit"
+      >
+        <span className="material-symbols-outlined text-[18px]">
+          edit
+        </span>
+        <span className="text-xs font-medium">
+          Edit
+        </span>
+      </button>
+
+      <button
+        onClick={onDelete}
+        className="flex items-center gap-1 px-3 py-2 rounded-xl hover:bg-red-500/10 text-text-muted hover:text-red-500 transition-all"
+        title="Delete"
+      >
+        <span className="material-symbols-outlined text-[18px]">
+          delete
+        </span>
+        <span className="text-xs font-medium">
+          Delete
+        </span>
+      </button>
+    </div>
+  </div>
+</Card>
+
   );
 }
 

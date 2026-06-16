@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 const Card = ({ children, className, title, subtitle, padding }: any) => (
-  <div className={`rounded-2xl border bg-card shadow-sm ${className || "border-border"} flex flex-col h-full`}>
+  <div className={`rounded-2xl border bg-card shadow-sm ${className || "border-border"} flex flex-col h-full p-3`}>
     {(title || subtitle) && (
       <div className="flex flex-col gap-1.5 p-6 pb-0">
         {title && <h3 className="font-semibold leading-none tracking-tight">{title}</h3>}
@@ -1131,14 +1131,15 @@ export default function ProviderDetailPage() {
       {bulkActionModal}
 
       {/* Modals */}
-      {providerId === "kiro" ? (
+      {/* {providerId === "kiro" ? (
         <KiroOAuthWrapper
           isOpen={showOAuthModal}
           providerInfo={providerInfo}
           onSuccess={handleOAuthSuccess}
           onClose={() => setShowOAuthModal(false)}
         />
-      ) : providerId === "cursor" ? (
+      )  */}
+        { providerId === "cursor" ? (
         <CursorAuthModal
           isOpen={showOAuthModal}
           onSuccess={handleOAuthSuccess}
@@ -1776,58 +1777,107 @@ function ChatPreview({ activeWorkspace, providerStorageAlias, models, kiloFreeMo
   };
 
   return (
-    <Card title="Chat Preview" icon="chat_bubble" className="border-primary/20">
-      <div className="flex flex-col h-[500px]">
-        <div className="p-3 border-b border-border bg-sidebar/5 flex items-center gap-3">
-          <div className="text-xs font-medium text-text-muted uppercase tracking-wider shrink-0">Test Model</div>
-          <select
-            value={selectedModel}
-            onChange={(e: any) => setSelectedModel(e.target.value)}
-            className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-primary"
-          >
-            {availableModels.map(m => (
-              <option key={m.id} value={m.id}>{m.alias || m.id}</option>
-            ))}
-          </select>
-          <Button variant="ghost" size="sm" onClick={() => setMessages([])} disabled={messages.length === 0}>Clear</Button>
-        </div>
+<Card
+  title="Chat Preview"
+  icon="chat_bubble"
+  className="w-full min-w-0 border-primary/20"
+>
+  <div className="flex flex-col h-[70vh] md:h-[500px] min-h-[400px]">
+    {/* Header */}
+    <div className="p-3 border-b border-border bg-sidebar/5 flex flex-col sm:flex-row sm:items-center gap-2">
+      <div className="text-xs font-medium text-text-muted uppercase tracking-wider shrink-0">
+        Test Model
+      </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-sidebar/5">
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-text-muted gap-2 opacity-50">
-              <span className="material-symbols-outlined text-4xl">smart_toy</span>
-              <p className="text-sm">Start a conversation to test your connection.</p>
-            </div>
-          ) : (
-            messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${m.role === "user"
+      <select
+        value={selectedModel}
+        onChange={(e: any) => setSelectedModel(e.target.value)}
+        className="w-full sm:flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary min-w-0"
+      >
+        {availableModels.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.alias || m.id}
+          </option>
+        ))}
+      </select>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setMessages([])}
+        disabled={messages.length === 0}
+        className="w-full sm:w-auto"
+      >
+        Clear
+      </Button>
+    </div>
+
+    {/* Messages */}
+    <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 bg-sidebar/5">
+      {messages.length === 0 ? (
+        <div className="h-full flex flex-col items-center justify-center text-text-muted gap-2 opacity-50">
+          <span className="material-symbols-outlined text-4xl">
+            smart_toy
+          </span>
+          <p className="text-sm text-center">
+            Start a conversation to test your connection.
+          </p>
+        </div>
+      ) : (
+        messages.map((m, i) => (
+          <div
+            key={i}
+            className={`flex ${
+              m.role === "user" ? "justify-end" : "justify-start"
+            }`}
+          >
+            <div
+              className={`max-w-[90%] md:max-w-[85%] rounded-2xl px-4 py-2.5 text-sm break-words ${
+                m.role === "user"
                   ? "bg-primary text-white rounded-tr-none"
                   : "bg-background border border-border rounded-tl-none"
-                  }`}>
-                  <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
-                </div>
-              </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+              }`}
+            >
+              <p className="whitespace-pre-wrap break-words leading-relaxed">
+                {m.content}
+              </p>
+            </div>
+          </div>
+        ))
+      )}
 
-        <div className="p-4 border-t border-border">
-          <form onSubmit={handleSend} className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e: any) => setInput(e.target.value)}
-              placeholder={`Send a message to ${selectedModel}...`}
-              disabled={sending}
-              className="flex-1 bg-sidebar/50 border border-border rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary"
-            />
-            <Button type="submit" icon="send" loading={sending} disabled={!input.trim() || sending}>Send</Button>
-          </form>
-        </div>
-      </div>
-    </Card>
+      <div ref={messagesEndRef} />
+    </div>
+
+    {/* Input */}
+    <div className="p-4 border-t border-border">
+      <form
+        onSubmit={handleSend}
+        className="flex flex-col sm:flex-row gap-2"
+      >
+        <input
+          type="text"
+          value={input}
+          onChange={(e: any) => setInput(e.target.value)}
+          placeholder={`Send a message to ${selectedModel}...`}
+          disabled={sending}
+          className="flex-1 min-w-0 bg-sidebar/50 border border-border rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary"
+        />
+
+        <Button
+          type="submit"
+          icon="send"
+          loading={sending}
+          disabled={!input.trim() || sending}
+          className="w-full sm:w-auto"
+        >
+          Send
+        </Button>
+      </form>
+    </div>
+  </div>
+</Card>
+
   );
 }
 

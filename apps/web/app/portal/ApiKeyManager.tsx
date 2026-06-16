@@ -97,7 +97,7 @@ export default function ApiKeyManager() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="p-6 border border-border rounded-2xl bg-surface/50">
+      <div className="p-3 border border-border rounded-2xl bg-surface/50">
         <h3 className="text-lg font-bold">Workspace API Keys</h3>
         <p className="text-sm text-text-muted">Use these keys to authenticate your requests from external applications.</p>
         

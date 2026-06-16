@@ -7,12 +7,12 @@ import { useWorkspace } from "@/context/WorkspaceContext";
 const Card = ({ children, className, title, subtitle }: any) => (
   <div className={`rounded-2xl border border-border bg-card shadow-sm ${className || ""}`}>
     {(title || subtitle) && (
-      <div className="flex flex-col gap-1.5 p-6 pb-0">
+      <div className="flex flex-col gap-1.5 p-2 pb-0">
         {title && <h3 className="font-semibold leading-none tracking-tight">{title}</h3>}
         {subtitle && <p className="text-sm text-text-muted">{subtitle}</p>}
       </div>
     )}
-    <div className={title || subtitle ? "p-6 pt-4" : className ? "" : "p-6"}>{children}</div>
+    <div className={title || subtitle ? "p-3 pt-4" : className ? "" : "p-3"}>{children}</div>
   </div>
 );
 
@@ -109,7 +109,7 @@ export default function WorkspaceSettingsPage() {
 
         {/* General Settings */}
         <div className="lg:col-span-1">
-          <Card className="p-6 h-full" title="Profile">
+          <Card className="p-2 h-full" title="Profile">
             <form onSubmit={handleUpdateWorkspace} className="flex flex-col gap-4 mt-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-text-muted">Display Name</label>
@@ -134,7 +134,7 @@ export default function WorkspaceSettingsPage() {
 
         {/* Members Management */}
         <div className="lg:col-span-2 flex flex-col gap-8">
-          <Card className="p-6" title="Identity & Access" subtitle="Manage who can access this workspace">
+          <Card className="p-2" title="Identity & Access" subtitle="Manage who can access this workspace">
             <div className="mt-4">
               <InviteManager />
             </div>
@@ -147,7 +147,7 @@ export default function WorkspaceSettingsPage() {
 
       {/* Advanced Section */}
       {isOwner && activeWorkspace?.type !== 'personal' && (
-        <Card className="p-6 border-red-500/20 bg-red-500/[0.02]" title="Advanced Operations">
+        <Card className="p-3 border-red-500/20 bg-red-500/[0.02]" title="Advanced Operations">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-bold text-text-main">Archive Workspace</p>
@@ -200,7 +200,7 @@ function PendingInvitesSection() {
   if (invites.length === 0) return null;
 
   return (
-    <Card className="p-6 border-primary/20 bg-primary/[0.02]" title="Thư mời đang chờ" subtitle="Bạn đã được mời tham gia vào các workspace sau">
+    <Card className="p-3 border-primary/20 bg-primary/[0.02]" title="Thư mời đang chờ" subtitle="Bạn đã được mời tham gia vào các workspace sau">
       <div className="flex flex-col gap-4 mt-4">
         {invites.map((invite: any) => (
           <div key={invite.id} className="flex flex-col justify-between gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-center">
