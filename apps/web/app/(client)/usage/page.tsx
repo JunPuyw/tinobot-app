@@ -1,8 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import useSWR from "swr";
+import {
+  APIKEY_PROVIDERS,
+  FREE_TIER_PROVIDERS,
+  FREE_PROVIDERS,
+  OAUTH_PROVIDERS,
+} from "@/lib/aimodel";
 const useWorkspaceSWR = <T,>(url: string | null) => {
   const { activeWorkspace } = useWorkspace();
   const fetcher = async (url: string) => {
@@ -56,6 +62,15 @@ const UsageChart = dynamic(() => import("./components/UsageChart"), {
   loading: () => (
     <div className="w-full h-full flex items-center justify-center bg-surface/5 rounded-2xl animate-pulse">
       Loading Chart...
+    </div>
+  ),
+});
+
+const ProviderMindMap = dynamic(() => import("./components/ProviderMindMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[360px] flex items-center justify-center bg-surface/5 rounded-2xl animate-pulse">
+      Loading Connections Map...
     </div>
   ),
 });
@@ -120,9 +135,39 @@ export default function UserUsagePage() {
   const { data: historyData, isLoading: historyLoading } =
     useWorkspaceSWR<{ items: UsageHistoryItem[] }>(`/api/auth/user/usage/history?period=${period}`);
 
+  const { data: providersData, isLoading: providersLoading } =
+    useWorkspaceSWR<{ connections: any[] }>("/api/auth/user/providers");
+
   const isLoading = statsLoading || chartLoading;
   const isFetching = (statsValidating || chartValidating) && !isLoading;
   const hasChartData = (chartData || []).some((d: any) => d.tokens > 0 || d.cost > 0);
+
+  const connectedProviders = useMemo(() => {
+    if (!providersData?.connections) return [];
+
+    const catalog: Record<string, any> = {
+      ...FREE_PROVIDERS,
+      ...FREE_TIER_PROVIDERS,
+      ...OAUTH_PROVIDERS,
+      ...APIKEY_PROVIDERS,
+    };
+
+    // Lọc ra các connections đang kích hoạt và đã nhập key
+    const activeConns = providersData.connections.filter(
+      (c: any) => c.isActive && c.apiKey && c.apiKey.trim() !== ""
+    );
+
+    return activeConns.map((c: any) => {
+      const meta = catalog[c.provider];
+      return {
+        id: c.provider,
+        name: meta?.name || c.name || c.provider,
+        color: meta?.color || "#6B7280",
+        textIcon: meta?.textIcon || meta?.icon || null,
+        hasKey: true,
+      };
+    });
+  }, [providersData]);
 
   const periodSelector = (
     <div className="flex items-center gap-2 bg-surface/50 backdrop-blur-sm p-1 rounded-xl border border-border self-start">
@@ -185,6 +230,22 @@ export default function UserUsagePage() {
           </>
         )}
       </div>
+
+      {/* Mind Map Section */}
+      <Card className="p-6 relative overflow-hidden group border-border/50 shadow-sm">
+        <div className="mb-4">
+          <h3 className="text-lg font-bold flex items-center gap-3 text-text-main">
+            <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg">hub</span>
+            Infrastructure Topology
+          </h3>
+          <p className="text-text-muted text-xs mt-1">
+            Visualizing active routing paths and connected provider endpoints
+          </p>
+        </div>
+        <div className="w-full bg-surface-hover/20 rounded-2xl border border-border/40 p-4 min-h-[300px] flex items-center justify-center">
+          <ProviderMindMap providers={connectedProviders} isLoading={providersLoading} />
+        </div>
+      </Card>
 
       {/* Chart Section */}
       <Card className="p-6 relative overflow-hidden group border-border/50 shadow-sm">
