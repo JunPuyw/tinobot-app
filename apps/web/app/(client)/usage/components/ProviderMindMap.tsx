@@ -49,7 +49,7 @@ function getProviderIcon(provider: Provider, cx: number, cy: number): React.Reac
   );
 }
 
-// Cubic bezier path from center node to provider node
+// Curved bezier path from center node to provider node with mild bending
 function getCurvedPath(
   x1: number,
   y1: number,
@@ -58,9 +58,9 @@ function getCurvedPath(
 ): string {
   const dx = x2 - x1;
   const dy = y2 - y1;
-  const cx1 = x1 + dx * 0.4;
+  const cx1 = x1 + dx * 0.35;
   const cy1 = y1 + dy * 0.1;
-  const cx2 = x1 + dx * 0.6;
+  const cx2 = x1 + dx * 0.65;
   const cy2 = y2 - dy * 0.1;
   return `M ${x1} ${y1} C ${cx1} ${cy1} ${cx2} ${cy2} ${x2} ${y2}`;
 }
@@ -70,10 +70,17 @@ export default function ProviderMindMap({
   isLoading,
 }: ProviderMindMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: 700, height: 420 });
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [size, setSize] = useState({ width: 400, height: 360 });
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [animatedIds, setAnimatedIds] = useState<Set<string>>(new Set());
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+
+  // Zoom & Pan states
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -81,7 +88,7 @@ export default function ProviderMindMap({
       for (const entry of entries) {
         setSize({
           width: entry.contentRect.width,
-          height: Math.max(380, Math.min(520, entry.contentRect.width * 0.55)),
+          height: entry.contentRect.height || 360,
         });
       }
     });
@@ -95,23 +102,59 @@ export default function ProviderMindMap({
     providers.forEach((p, i) => {
       setTimeout(() => {
         setAnimatedIds((prev) => new Set([...prev, p.id]));
-      }, 80 * i);
+      }, 60 * i);
     });
   }, [providers]);
 
   const cx = size.width / 2;
   const cy = size.height / 2;
-  const radius = Math.min(cx, cy) * 0.68;
+  
+  // Dynamic radius based on layout size to avoid clipping
+  const radius = Math.min(size.width, size.height) * 0.34;
 
-  const nodeRadius = 26;
-  const centerRadius = 42;
+  const nodeRadius = 24;
+  const centerRadius = 38;
+
+  // Zoom In / Out / Reset functions
+  const handleZoomIn = () => setZoom((z) => Math.min(2.5, z * 1.2));
+  const handleZoomOut = () => setZoom((z) => Math.max(0.4, z / 1.2));
+  const handleReset = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  // Dragging / Panning handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only drag with left click
+    if (e.button !== 0) return;
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    setPan({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y,
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    // Simple zoom on wheel scroll
+    const factor = 1.05;
+    const newZoom = e.deltaY < 0 ? zoom * factor : zoom / factor;
+    setZoom(Math.max(0.4, Math.min(2.5, newZoom)));
+  };
 
   if (isLoading) {
     return (
       <div
         ref={containerRef}
-        className="w-full flex items-center justify-center"
-        style={{ height: size.height }}
+        className="w-full h-full flex items-center justify-center bg-surface-hover/5 rounded-2xl"
       >
         <div className="flex flex-col items-center gap-3 text-text-muted">
           <span className="material-symbols-outlined animate-spin text-[32px] text-primary">
@@ -127,8 +170,7 @@ export default function ProviderMindMap({
     return (
       <div
         ref={containerRef}
-        className="w-full flex flex-col items-center justify-center gap-3 text-text-muted"
-        style={{ height: size.height }}
+        className="w-full h-full flex flex-col items-center justify-center gap-3 text-text-muted p-6"
       >
         <span className="material-symbols-outlined text-5xl opacity-10">
           hub
@@ -144,17 +186,52 @@ export default function ProviderMindMap({
   }
 
   return (
-    <div ref={containerRef} className="w-full select-none" style={{ height: size.height }}>
+    <div
+      ref={containerRef}
+      className="w-full h-full relative select-none overflow-hidden"
+    >
+      {/* Zoom UI Controller */}
+      <div className="absolute bottom-4 left-4 z-20 flex flex-col gap-1.5 bg-card/85 backdrop-blur border border-border/60 p-1.5 rounded-xl shadow-md">
+        <button
+          onClick={handleZoomIn}
+          className="size-7 rounded-lg flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface transition-colors active:scale-95"
+          title="Zoom In"
+        >
+          <span className="material-symbols-outlined text-[18px] font-bold">add</span>
+        </button>
+        <button
+          onClick={handleZoomOut}
+          className="size-7 rounded-lg flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface transition-colors active:scale-95"
+          title="Zoom Out"
+        >
+          <span className="material-symbols-outlined text-[18px] font-bold">remove</span>
+        </button>
+        <div className="h-px bg-border/50 my-0.5 mx-1" />
+        <button
+          onClick={handleReset}
+          className="size-7 rounded-lg flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface transition-colors active:scale-95"
+          title="Reset Zoom"
+        >
+          <span className="material-symbols-outlined text-[16px] font-bold">fullscreen_exit</span>
+        </button>
+      </div>
+
       <svg
-        width={size.width}
-        height={size.height}
-        viewBox={`0 0 ${size.width} ${size.height}`}
+        ref={svgRef}
+        width="100%"
+        height="100%"
+        className={`w-full h-full ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
         style={{ overflow: "visible" }}
       >
         <defs>
           {/* Radial glow for center */}
           <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="rgba(139,92,246,0.3)" />
+            <stop offset="0%" stopColor="rgba(139,92,246,0.25)" />
             <stop offset="100%" stopColor="rgba(139,92,246,0)" />
           </radialGradient>
 
@@ -174,7 +251,7 @@ export default function ProviderMindMap({
 
           {/* Glow filter for connections */}
           <filter id="lineGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -183,17 +260,30 @@ export default function ProviderMindMap({
 
           {/* Drop shadow for nodes */}
           <filter id="nodeShadow" x="-30%" y="-30%" width="160%" height="160%">
-            <feDropShadow dx="0" dy="4" stdDeviation="6" floodOpacity="0.25" />
+            <feDropShadow dx="0" dy="3" stdDeviation="5" floodOpacity="0.2" />
           </filter>
 
-          {/* Pulsing animation ring */}
-          <filter id="pulse" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
+          {/* Custom line gradients from center to nodes */}
+          {providers.map((p, i) => {
+            const angle = (2 * Math.PI * i) / providers.length - Math.PI / 2;
+            const nx = cx + radius * Math.cos(angle);
+            const ny = cy + radius * Math.sin(angle);
+            return (
+              <linearGradient
+                key={`line-grad-${p.id}`}
+                id={`line-grad-${p.id}`}
+                x1={cx}
+                y1={cy}
+                x2={nx}
+                y2={ny}
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop offset="0%" stopColor="rgba(139,92,246,0.85)" />
+                <stop offset="60%" stopColor={p.color} stopOpacity="0.7" />
+                <stop offset="100%" stopColor={p.color} stopOpacity="0.9" />
+              </linearGradient>
+            );
+          })}
         </defs>
 
         {/* Background grid dots */}
@@ -201,323 +291,303 @@ export default function ProviderMindMap({
           id="dots"
           x="0"
           y="0"
-          width="24"
-          height="24"
+          width="20"
+          height="20"
           patternUnits="userSpaceOnUse"
         >
-          <circle cx="1" cy="1" r="1" fill="currentColor" opacity="0.06" />
+          <circle cx="1" cy="1" r="0.75" fill="currentColor" opacity="0.05" />
         </pattern>
-        <rect width={size.width} height={size.height} fill="url(#dots)" />
+        <rect width="100%" height="100%" fill="url(#dots)" />
 
-        {/* Ambient glow behind center */}
-        <circle
-          cx={cx}
-          cy={cy}
-          r={centerRadius * 2.5}
-          fill="url(#centerGlow)"
-        />
+        {/* Zoom and Pan container */}
+        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`} style={{ transformOrigin: `${cx}px ${cy}px`, transition: isDragging ? "none" : "transform 0.15s ease-out" }}>
+          {/* Ambient glow behind center */}
+          <circle
+            cx={cx}
+            cy={cy}
+            r={centerRadius * 2.8}
+            fill="url(#centerGlow)"
+          />
 
-        {/* Connection lines */}
-        {providers.map((provider, i) => {
-          const angle = (2 * Math.PI * i) / providers.length - Math.PI / 2;
-          const nx = cx + radius * Math.cos(angle);
-          const ny = cy + radius * Math.sin(angle);
-          const isHovered = hoveredId === provider.id;
-          const isAnimated = animatedIds.has(provider.id);
+          {/* Connection lines */}
+          {providers.map((provider, i) => {
+            const angle = (2 * Math.PI * i) / providers.length - Math.PI / 2;
+            const nx = cx + radius * Math.cos(angle);
+            const ny = cy + radius * Math.sin(angle);
+            const isHovered = hoveredId === provider.id;
+            const isAnimated = animatedIds.has(provider.id);
 
-          // Shorten line endpoints to avoid overlapping nodes
-          const lineStartX = cx + (centerRadius + 4) * Math.cos(angle);
-          const lineStartY = cy + (centerRadius + 4) * Math.sin(angle);
-          const lineEndX = nx - (nodeRadius + 2) * Math.cos(angle);
-          const lineEndY = ny - (nodeRadius + 2) * Math.sin(angle);
+            // Calculate precise edge intersections
+            const lineStartX = cx + (centerRadius + 3) * Math.cos(angle);
+            const lineStartY = cy + (centerRadius + 3) * Math.sin(angle);
+            const lineEndX = nx - (nodeRadius + 2) * Math.cos(angle);
+            const lineEndY = ny - (nodeRadius + 2) * Math.sin(angle);
 
-          return (
-            <g key={`line-${provider.id}`}>
-              {/* Glow line (behind) */}
-              <path
-                d={getCurvedPath(lineStartX, lineStartY, lineEndX, lineEndY)}
-                fill="none"
-                stroke={provider.color}
-                strokeWidth={isHovered ? 3 : 1.5}
-                strokeOpacity={isAnimated ? (isHovered ? 0.6 : 0.25) : 0}
-                strokeDasharray={isHovered ? "none" : "4 3"}
-                filter="url(#lineGlow)"
+            return (
+              <g key={`line-${provider.id}`}>
+                {/* Glow line (behind) */}
+                <path
+                  d={getCurvedPath(lineStartX, lineStartY, lineEndX, lineEndY)}
+                  fill="none"
+                  stroke={`url(#line-grad-${provider.id})`}
+                  strokeWidth={isHovered ? 4.5 : 2}
+                  strokeOpacity={isAnimated ? (isHovered ? 0.75 : 0.4) : 0}
+                  strokeDasharray={isHovered ? "none" : "4 3"}
+                  filter="url(#lineGlow)"
+                  style={{
+                    transition: "stroke-opacity 0.4s ease, stroke-width 0.2s ease",
+                    transitionDelay: isAnimated ? "0ms" : `${60 * i}ms`,
+                  }}
+                />
+                {/* Main line */}
+                <path
+                  d={getCurvedPath(lineStartX, lineStartY, lineEndX, lineEndY)}
+                  fill="none"
+                  stroke={`url(#line-grad-${provider.id})`}
+                  strokeWidth={isHovered ? 2.5 : 1.2}
+                  strokeOpacity={isAnimated ? (isHovered ? 0.95 : 0.6) : 0}
+                  strokeDasharray={isHovered ? "none" : "4 3"}
+                  style={{
+                    transition: "stroke-opacity 0.4s ease, stroke-width 0.2s ease",
+                    transitionDelay: isAnimated ? "0ms" : `${60 * i}ms`,
+                  }}
+                />
+              </g>
+            );
+          })}
+
+          {/* Provider nodes */}
+          {providers.map((provider, i) => {
+            const angle = (2 * Math.PI * i) / providers.length - Math.PI / 2;
+            const nx = cx + radius * Math.cos(angle);
+            const ny = cy + radius * Math.sin(angle);
+            const isHovered = hoveredId === provider.id;
+            const isAnimated = animatedIds.has(provider.id);
+
+            // Push labels radially outward
+            const labelOffsetX = Math.cos(angle) * (nodeRadius + 14);
+            const labelOffsetY = Math.sin(angle) * (nodeRadius + 14);
+            const labelAnchor =
+              Math.cos(angle) > 0.35
+                ? "start"
+                : Math.cos(angle) < -0.35
+                ? "end"
+                : "middle";
+
+            return (
+              <g
+                key={`node-${provider.id}`}
                 style={{
-                  transition: "stroke-opacity 0.4s ease, stroke-width 0.2s ease",
-                  transitionDelay: isAnimated ? "0ms" : `${80 * i}ms`,
+                  cursor: "pointer",
+                  opacity: isAnimated ? 1 : 0,
+                  transform: isAnimated ? "scale(1)" : `scale(0.5)`,
+                  transformOrigin: `${nx}px ${ny}px`,
+                  transition: `opacity 0.4s ease ${60 * i}ms, transform 0.4s cubic-bezier(0.34,1.56,0.64,1) ${60 * i}ms`,
                 }}
-              />
-              {/* Main line */}
-              <path
-                d={getCurvedPath(lineStartX, lineStartY, lineEndX, lineEndY)}
-                fill="none"
-                stroke={provider.color}
-                strokeWidth={isHovered ? 2 : 1}
-                strokeOpacity={isAnimated ? (isHovered ? 0.9 : 0.45) : 0}
-                strokeDasharray={isHovered ? "none" : "4 3"}
-                style={{
-                  transition: "stroke-opacity 0.4s ease, stroke-width 0.2s ease",
-                  transitionDelay: isAnimated ? "0ms" : `${80 * i}ms`,
-                }}
-              />
-            </g>
-          );
-        })}
+                onMouseEnter={() => setHoveredId(provider.id)}
+                onMouseLeave={() => setHoveredId(null)}
+              >
+                {/* Hover pulsing halo ring */}
+                {isHovered && (
+                  <circle
+                    cx={nx}
+                    cy={ny}
+                    r={nodeRadius + 7}
+                    fill="none"
+                    stroke={provider.color}
+                    strokeWidth="1.5"
+                    strokeOpacity="0.4"
+                  />
+                )}
 
-        {/* Provider nodes */}
-        {providers.map((provider, i) => {
-          const angle = (2 * Math.PI * i) / providers.length - Math.PI / 2;
-          const nx = cx + radius * Math.cos(angle);
-          const ny = cy + radius * Math.sin(angle);
-          const isHovered = hoveredId === provider.id;
-          const isAnimated = animatedIds.has(provider.id);
-
-          // Label position — push outward from node
-          const labelOffsetX = Math.cos(angle) * (nodeRadius + 18);
-          const labelOffsetY = Math.sin(angle) * (nodeRadius + 18);
-          const labelAnchor =
-            Math.cos(angle) > 0.3
-              ? "start"
-              : Math.cos(angle) < -0.3
-              ? "end"
-              : "middle";
-
-          return (
-            <g
-              key={`node-${provider.id}`}
-              style={{
-                cursor: "pointer",
-                opacity: isAnimated ? 1 : 0,
-                transform: isAnimated
-                  ? "scale(1)"
-                  : `scale(0.5)`,
-                transformOrigin: `${nx}px ${ny}px`,
-                transition: `opacity 0.4s ease ${80 * i}ms, transform 0.4s cubic-bezier(0.34,1.56,0.64,1) ${80 * i}ms`,
-              }}
-              onMouseEnter={() => setHoveredId(provider.id)}
-              onMouseLeave={() => setHoveredId(null)}
-            >
-              {/* Hover ring */}
-              {isHovered && (
+                {/* Node shadow circle */}
                 <circle
                   cx={nx}
                   cy={ny}
-                  r={nodeRadius + 8}
-                  fill="none"
-                  stroke={provider.color}
-                  strokeWidth="1.5"
-                  strokeOpacity="0.4"
+                  r={isHovered ? nodeRadius + 2 : nodeRadius}
+                  fill={provider.color}
+                  opacity="0.12"
+                  filter="url(#nodeShadow)"
+                  style={{ transition: "r 0.2s ease" }}
                 />
-              )}
 
-              {/* Node circle shadow */}
-              <circle
-                cx={nx}
-                cy={ny}
-                r={isHovered ? nodeRadius + 3 : nodeRadius}
-                fill={provider.color}
-                opacity="0.15"
-                filter="url(#nodeShadow)"
-                style={{ transition: "r 0.2s ease" }}
-              />
+                {/* Main node circle */}
+                <circle
+                  cx={nx}
+                  cy={ny}
+                  r={isHovered ? nodeRadius + 1 : nodeRadius}
+                  fill={`url(#grad-${provider.id})`}
+                  stroke={provider.color}
+                  strokeWidth={isHovered ? 2.5 : 1.5}
+                  strokeOpacity={isHovered ? 1 : 0.55}
+                  filter="url(#nodeShadow)"
+                  style={{ transition: "r 0.2s ease, stroke-width 0.2s ease" }}
+                />
 
-              {/* Node circle */}
-              <circle
-                cx={nx}
-                cy={ny}
-                r={isHovered ? nodeRadius + 2 : nodeRadius}
-                fill={`url(#grad-${provider.id})`}
-                stroke={provider.color}
-                strokeWidth={isHovered ? 2.5 : 1.5}
-                strokeOpacity={isHovered ? 1 : 0.5}
-                filter="url(#nodeShadow)"
-                style={{ transition: "r 0.2s ease, stroke-width 0.2s ease" }}
-              />
+                {/* Icon / Image with failback */}
+                <g
+                  style={{
+                    transform: `scale(${isHovered ? 1.15 : 1})`,
+                    transition: "transform 0.2s ease",
+                    transformOrigin: `${nx}px ${ny}px`,
+                  }}
+                >
+                  {failedImages[provider.id] ? (
+                    getProviderIcon(provider, nx, ny)
+                  ) : (
+                    <>
+                      <defs>
+                        <clipPath id={`clip-${provider.id}`}>
+                          <circle cx={nx} cy={ny} r={13} />
+                        </clipPath>
+                      </defs>
+                      <image
+                        href={`/providers/${provider.id}.png`}
+                        x={nx - 13}
+                        y={ny - 13}
+                        width={26}
+                        height={26}
+                        clipPath={`url(#clip-${provider.id})`}
+                        onError={() => {
+                          setFailedImages((prev) => ({ ...prev, [provider.id]: true }));
+                        }}
+                      />
+                    </>
+                  )}
+                </g>
 
-              {/* Icon / Text inside node */}
-              <g
-                style={{
-                  transform: `scale(${isHovered ? 1.15 : 1})`,
-                  transition: "transform 0.2s ease",
-                  transformOrigin: `${nx}px ${ny}px`,
-                }}
-              >
-                {failedImages[provider.id] ? (
-                  getProviderIcon(provider, nx, ny)
-                ) : (
-                  <>
-                    <defs>
-                      <clipPath id={`clip-${provider.id}`}>
-                        <circle cx={nx} cy={ny} r={14} />
-                      </clipPath>
-                    </defs>
-                    <image
-                      href={`/providers/${provider.id}.png`}
-                      x={nx - 14}
-                      y={ny - 14}
-                      width={28}
-                      height={28}
-                      clipPath={`url(#clip-${provider.id})`}
-                      onError={() => {
-                        setFailedImages((prev) => ({ ...prev, [provider.id]: true }));
-                      }}
-                    />
-                  </>
-                )}
+                {/* Node label */}
+                <text
+                  x={nx + labelOffsetX}
+                  y={ny + labelOffsetY}
+                  textAnchor={labelAnchor}
+                  dominantBaseline="central"
+                  fill={isHovered ? provider.color : "currentColor"}
+                  fontSize="10"
+                  fontWeight={isHovered ? "700" : "600"}
+                  fontFamily="Inter, system-ui, sans-serif"
+                  opacity={isHovered ? 1 : 0.75}
+                  style={{ transition: "all 0.2s ease", pointerEvents: "none" }}
+                >
+                  {provider.name.length > 10
+                    ? provider.name.slice(0, 10) + "…"
+                    : provider.name}
+                </text>
               </g>
+            );
+          })}
 
-              {/* Provider label */}
-              <text
-                x={nx + labelOffsetX}
-                y={ny + labelOffsetY}
-                textAnchor={labelAnchor}
-                dominantBaseline="central"
-                fill={isHovered ? provider.color : "currentColor"}
-                fontSize="11"
-                fontWeight={isHovered ? "700" : "600"}
-                fontFamily="Inter, system-ui, sans-serif"
-                opacity={isHovered ? 1 : 0.75}
-                style={{ transition: "all 0.2s ease", pointerEvents: "none" }}
-              >
-                {provider.name.length > 12
-                  ? provider.name.slice(0, 12) + "…"
-                  : provider.name}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Center Tinobot node */}
-        <g>
-          {/* Pulsing ring animation */}
-          <circle
-            cx={cx}
-            cy={cy}
-            r={centerRadius + 14}
-            fill="none"
-            stroke="rgba(139,92,246,0.15)"
-            strokeWidth="1"
-          >
-            <animate
-              attributeName="r"
-              values={`${centerRadius + 10};${centerRadius + 22};${centerRadius + 10}`}
-              dur="3s"
-              repeatCount="indefinite"
-            />
-            <animate
-              attributeName="stroke-opacity"
-              values="0.2;0.05;0.2"
-              dur="3s"
-              repeatCount="indefinite"
-            />
-          </circle>
-
-          {/* Center node background */}
-          <circle
-            cx={cx}
-            cy={cy}
-            r={centerRadius + 4}
-            fill="rgba(139,92,246,0.08)"
-          />
-
-          {/* Center node border */}
-          <circle
-            cx={cx}
-            cy={cy}
-            r={centerRadius}
-            fill="var(--color-card, #1a1a2e)"
-            stroke="rgba(139,92,246,0.7)"
-            strokeWidth="2"
-            filter="url(#nodeShadow)"
-          />
-
-          {/* Tinobot text */}
-          <text
-            x={cx}
-            y={cy - 6}
-            textAnchor="middle"
-            dominantBaseline="central"
-            fill="rgba(139,92,246,1)"
-            fontSize="13"
-            fontWeight="800"
-            fontFamily="Inter, system-ui, sans-serif"
-            letterSpacing="-0.5"
-          >
-            Tinobot
-          </text>
-          <text
-            x={cx}
-            y={cy + 11}
-            textAnchor="middle"
-            dominantBaseline="central"
-            fill="rgba(139,92,246,0.5)"
-            fontSize="8"
-            fontWeight="600"
-            fontFamily="Inter, system-ui, sans-serif"
-            letterSpacing="1"
-          >
-            AI GATEWAY
-          </text>
-        </g>
-
-        {/* Tooltip / pill label for hovered provider */}
-        {hoveredId && (() => {
-          const prov = providers.find((p) => p.id === hoveredId);
-          if (!prov) return null;
-          const idx = providers.indexOf(prov);
-          const angle = (2 * Math.PI * idx) / providers.length - Math.PI / 2;
-          const nx = cx + radius * Math.cos(angle);
-          const ny = cy + radius * Math.sin(angle);
-          const pillY = ny - nodeRadius - 18;
-          return (
-            <g>
-              <rect
-                x={nx - 40}
-                y={pillY - 10}
-                width={80}
-                height={20}
-                rx="10"
-                fill={prov.color}
-                opacity="0.9"
+          {/* Central Tinobot node */}
+          <g>
+            {/* Ambient pulsing ring */}
+            <circle
+              cx={cx}
+              cy={cy}
+              r={centerRadius + 12}
+              fill="none"
+              stroke="rgba(139,92,246,0.18)"
+              strokeWidth="1"
+            >
+              <animate
+                attributeName="r"
+                values={`${centerRadius + 8};${centerRadius + 18};${centerRadius + 8}`}
+                dur="3.2s"
+                repeatCount="indefinite"
               />
-              <text
-                x={nx}
-                y={pillY}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fill="white"
-                fontSize="9"
-                fontWeight="700"
-                fontFamily="Inter, system-ui, sans-serif"
-                letterSpacing="0.5"
-              >
-                {prov.id.toUpperCase()}
-              </text>
-            </g>
-          );
-        })()}
-      </svg>
+              <animate
+                attributeName="stroke-opacity"
+                values="0.22;0.06;0.22"
+                dur="3.2s"
+                repeatCount="indefinite"
+              />
+            </circle>
 
-      {/* Legend */}
-      <div className="flex flex-wrap justify-center gap-2 mt-1 px-2">
-        {providers.map((p) => (
-          <div
-            key={p.id}
-            className="flex items-center gap-1.5 cursor-pointer transition-opacity"
-            style={{ opacity: hoveredId && hoveredId !== p.id ? 0.4 : 1 }}
-            onMouseEnter={() => setHoveredId(p.id)}
-            onMouseLeave={() => setHoveredId(null)}
-          >
-            <div
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: p.color }}
+            {/* Inner background */}
+            <circle
+              cx={cx}
+              cy={cy}
+              r={centerRadius + 3}
+              fill="rgba(139,92,246,0.08)"
             />
-            <span className="text-[10px] font-semibold text-text-muted">
-              {p.name}
-            </span>
-          </div>
-        ))}
-      </div>
+
+            {/* Center border circle */}
+            <circle
+              cx={cx}
+              cy={cy}
+              r={centerRadius}
+              fill="#18182b"
+              stroke="rgba(139,92,246,0.8)"
+              strokeWidth="2.2"
+              filter="url(#nodeShadow)"
+            />
+
+            {/* Tinobot Title */}
+            <text
+              x={cx}
+              y={cy - 5}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill="rgba(139,92,246,1)"
+              fontSize="12.5"
+              fontWeight="800"
+              fontFamily="Inter, system-ui, sans-serif"
+              letterSpacing="-0.5"
+            >
+              Tinobot
+            </text>
+            <text
+              x={cx}
+              y={cy + 10}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill="rgba(139,92,246,0.5)"
+              fontSize="7.5"
+              fontWeight="700"
+              fontFamily="Inter, system-ui, sans-serif"
+              letterSpacing="0.8"
+            >
+              AI GATEWAY
+            </text>
+          </g>
+
+          {/* Tooltip on Node Hover */}
+          {hoveredId && (() => {
+            const prov = providers.find((p) => p.id === hoveredId);
+            if (!prov) return null;
+            const idx = providers.indexOf(prov);
+            const angle = (2 * Math.PI * idx) / providers.length - Math.PI / 2;
+            const nx = cx + radius * Math.cos(angle);
+            const ny = cy + radius * Math.sin(angle);
+            const pillY = ny - nodeRadius - 16;
+            return (
+              <g>
+                <rect
+                  x={nx - 36}
+                  y={pillY - 9}
+                  width={72}
+                  height={18}
+                  rx="9"
+                  fill={prov.color}
+                  opacity="0.9"
+                />
+                <text
+                  x={nx}
+                  y={pillY}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fill="white"
+                  fontSize="8.5"
+                  fontWeight="700"
+                  fontFamily="Inter, system-ui, sans-serif"
+                  letterSpacing="0.5"
+                >
+                  {prov.id.toUpperCase()}
+                </text>
+              </g>
+            );
+          })()}
+        </g>
+      </svg>
     </div>
   );
 }
