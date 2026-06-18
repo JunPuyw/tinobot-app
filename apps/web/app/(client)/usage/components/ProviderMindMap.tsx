@@ -15,10 +15,12 @@ interface ProviderMindMapProps {
   isLoading?: boolean;
 }
 
-function getProviderIcon(provider: Provider): React.ReactNode {
+function getProviderIcon(provider: Provider, cx: number, cy: number): React.ReactNode {
   if (provider.textIcon) {
     return (
       <text
+        x={cx}
+        y={cy}
         textAnchor="middle"
         dominantBaseline="central"
         fill="white"
@@ -33,6 +35,8 @@ function getProviderIcon(provider: Provider): React.ReactNode {
   }
   return (
     <text
+      x={cx}
+      y={cy}
       textAnchor="middle"
       dominantBaseline="central"
       fill="white"
@@ -69,6 +73,7 @@ export default function ProviderMindMap({
   const [size, setSize] = useState({ width: 700, height: 420 });
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [animatedIds, setAnimatedIds] = useState<Set<string>>(new Set());
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -331,14 +336,34 @@ export default function ProviderMindMap({
 
               {/* Icon / Text inside node */}
               <g
-                transform={`translate(${nx}, ${ny})`}
                 style={{
-                  transform: `translate(${nx}px, ${ny}px) scale(${isHovered ? 1.15 : 1})`,
+                  transform: `scale(${isHovered ? 1.15 : 1})`,
                   transition: "transform 0.2s ease",
-                  transformOrigin: "0 0",
+                  transformOrigin: `${nx}px ${ny}px`,
                 }}
               >
-                {getProviderIcon(provider)}
+                {failedImages[provider.id] ? (
+                  getProviderIcon(provider, nx, ny)
+                ) : (
+                  <>
+                    <defs>
+                      <clipPath id={`clip-${provider.id}`}>
+                        <circle cx={nx} cy={ny} r={14} />
+                      </clipPath>
+                    </defs>
+                    <image
+                      href={`/providers/${provider.id}.png`}
+                      x={nx - 14}
+                      y={ny - 14}
+                      width={28}
+                      height={28}
+                      clipPath={`url(#clip-${provider.id})`}
+                      onError={() => {
+                        setFailedImages((prev) => ({ ...prev, [provider.id]: true }));
+                      }}
+                    />
+                  </>
+                )}
               </g>
 
               {/* Provider label */}
