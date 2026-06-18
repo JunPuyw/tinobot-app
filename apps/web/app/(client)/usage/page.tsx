@@ -231,69 +231,66 @@ export default function UserUsagePage() {
         )}
       </div>
 
-      {/* Mind Map + Timeline Chart Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
-        {/* Mind Map Section (Col span 6, padding="none" to make it full card) */}
-        <Card padding="none" className="lg:col-span-6 relative overflow-hidden group border-border/50 shadow-sm flex flex-col h-[480px]">
-          <div className="p-6 pb-2 shrink-0">
-            <h3 className="text-lg font-bold flex items-center gap-3 text-text-main">
-              <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg">hub</span>
-              Infrastructure Topology
-            </h3>
-            <p className="text-text-muted text-xs mt-1">
-              Active routing paths and connected provider endpoints
-            </p>
-          </div>
-          <div className="w-full flex-1 overflow-hidden relative min-h-0">
-            <ProviderMindMap providers={connectedProviders} isLoading={providersLoading} />
-          </div>
-        </Card>
+      {/* Mind Map Section */}
+      <Card className="p-6 relative overflow-hidden group border-border/50 shadow-sm">
+        <div className="mb-4">
+          <h3 className="text-lg font-bold flex items-center gap-3 text-text-main">
+            <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg">hub</span>
+            Infrastructure Topology
+          </h3>
+          <p className="text-text-muted text-xs mt-1">
+            Visualizing active routing paths and connected provider endpoints
+          </p>
+        </div>
+        <div className="w-full bg-surface-hover/20 rounded-2xl border border-border/40 p-4 min-h-[300px] flex items-center justify-center">
+          <ProviderMindMap providers={connectedProviders} isLoading={providersLoading} />
+        </div>
+      </Card>
 
-        {/* Chart Section (Col span 4) */}
-        <Card className="lg:col-span-4 p-6 relative overflow-hidden group border-border/50 shadow-sm flex flex-col h-[480px]">
-          <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between shrink-0">
-            <h3 className="text-lg font-bold flex items-center gap-3 text-text-main">
-              <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg">analytics</span>
-              Timeline
-            </h3>
-            <div className="flex w-full items-center gap-1 rounded-xl border border-border/50 bg-surface/50 p-1 sm:w-auto shrink-0">
-              <button
-                onClick={() => setViewMode("tokens")}
-                className={`flex-1 rounded-lg px-4 py-1.5 text-xs font-bold transition-all sm:flex-none ${viewMode === "tokens" ? "bg-primary text-white shadow-md shadow-primary/20" : "text-text-muted hover:text-text-main hover:bg-surface"
-                  }`}
-              >
-                Tokens
-              </button>
-              <button
-                onClick={() => setViewMode("cost")}
-                className={`flex-1 rounded-lg px-4 py-1.5 text-xs font-bold transition-all sm:flex-none ${viewMode === "cost" ? "bg-primary text-white shadow-md shadow-primary/20" : "text-text-muted hover:text-text-main hover:bg-surface"
-                  }`}
-              >
-                Credits
-              </button>
+      {/* Chart Section */}
+      <Card className="p-6 relative overflow-hidden group border-border/50 shadow-sm">
+        <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-lg font-bold flex items-center gap-3 text-text-main">
+            <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg">analytics</span>
+            Timeline Visualization
+          </h3>
+          <div className="flex w-full items-center gap-1 rounded-xl border border-border/50 bg-surface/50 p-1 sm:w-auto">
+            <button
+              onClick={() => setViewMode("tokens")}
+              className={`flex-1 rounded-lg px-4 py-1.5 text-xs font-bold transition-all sm:flex-none ${viewMode === "tokens" ? "bg-primary text-white shadow-md shadow-primary/20" : "text-text-muted hover:text-text-main hover:bg-surface"
+                }`}
+            >
+              Tokens
+            </button>
+            <button
+              onClick={() => setViewMode("cost")}
+              className={`flex-1 rounded-lg px-4 py-1.5 text-xs font-bold transition-all sm:flex-none ${viewMode === "cost" ? "bg-primary text-white shadow-md shadow-primary/20" : "text-text-muted hover:text-text-main hover:bg-surface"
+                }`}
+            >
+              Credits
+            </button>
+          </div>
+        </div>
+
+        <div className="relative h-[280px] w-full sm:h-[320px]">
+          {isFetching && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface/20 backdrop-blur-[1px] rounded-xl">
+              <Spinner size="sm" className='' />
             </div>
-          </div>
+          )}
 
-          <div className="relative flex-1 w-full min-h-0">
-            {isFetching && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface/20 backdrop-blur-[1px] rounded-xl">
-                <Spinner size="sm" className='' />
-              </div>
-            )}
-
-            {isLoading ? (
-              <Skeleton className="h-full w-full rounded-xl" />
-            ) : !hasChartData ? (
-              <div className="h-full flex flex-col items-center justify-center bg-surface/10 rounded-2xl border-2 border-dashed border-border/50 text-text-muted">
-                <span className="material-symbols-outlined text-5xl mb-3 opacity-10">show_chart</span>
-                <p className="text-sm font-medium italic">No activity detected yet</p>
-              </div>
-            ) : (
-              <UsageChart chartData={chartData} viewMode={viewMode} fmt={fmt} fmtCost={fmtCredits} />
-            )}
-          </div>
-        </Card>
-      </div>
+          {isLoading ? (
+            <Skeleton className="h-full w-full rounded-xl" />
+          ) : !hasChartData ? (
+            <div className="h-full flex flex-col items-center justify-center bg-surface/10 rounded-2xl border-2 border-dashed border-border/50 text-text-muted">
+              <span className="material-symbols-outlined text-5xl mb-3 opacity-10">show_chart</span>
+              <p className="text-sm font-medium italic">No activity detected yet</p>
+            </div>
+          ) : (
+            <UsageChart chartData={chartData} viewMode={viewMode} fmt={fmt} fmtCost={fmtCredits} />
+          )}
+        </div>
+      </Card>
 
       {/* Usage Table */}
       <Card title="Workspace Activity Logs" padding="none" className="border-border/50 shadow-sm overflow-hidden">

@@ -23,7 +23,7 @@ function getProviderIcon(provider: Provider, cx: number, cy: number): React.Reac
         y={cy}
         textAnchor="middle"
         dominantBaseline="central"
-        fill="white"
+        fill="#0f172a"
         fontSize="11"
         fontWeight="700"
         fontFamily="Inter, system-ui, sans-serif"
@@ -39,7 +39,7 @@ function getProviderIcon(provider: Provider, cx: number, cy: number): React.Reac
       y={cy}
       textAnchor="middle"
       dominantBaseline="central"
-      fill="white"
+      fill="#0f172a"
       fontSize="10"
       fontWeight="700"
       fontFamily="Inter, system-ui, sans-serif"
@@ -49,96 +49,105 @@ function getProviderIcon(provider: Provider, cx: number, cy: number): React.Reac
   );
 }
 
-// Curved bezier path from center node to provider node with mild bending
-function getCurvedPath(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number
-): string {
-  const dx = x2 - x1;
+// Cubic bezier path for vertical connection
+function getCurvedPathVertical(x1: number, y1: number, x2: number, y2: number): string {
   const dy = y2 - y1;
-  const cx1 = x1 + dx * 0.35;
-  const cy1 = y1 + dy * 0.1;
-  const cx2 = x1 + dx * 0.65;
-  const cy2 = y2 - dy * 0.1;
-  return `M ${x1} ${y1} C ${cx1} ${cy1} ${cx2} ${cy2} ${x2} ${y2}`;
-}export default function ProviderMindMap({
+  const cy1 = y1 + dy * 0.45;
+  const cy2 = y2 - dy * 0.45;
+  return `M ${x1} ${y1} C ${x1} ${cy1} ${x2} ${cy2} ${x2} ${y2}`;
+}
+
+// Cubic bezier path for horizontal connection
+function getCurvedPathHorizontal(x1: number, y1: number, x2: number, y2: number): string {
+  const dx = x2 - x1;
+  const cx1 = x1 + dx * 0.45;
+  const cx2 = x2 - dx * 0.45;
+  return `M ${x1} ${y1} C ${cx1} ${y1} ${cx2} ${y2} ${x2} ${y2}`;
+}
+
+// Connect from border edge of Tinobot box to border edge of provider box
+function getConnectionPath(
+  cx: number, cy: number, cw: number, ch: number,
+  nx: number, ny: number, nw: number, nh: number,
+  angle: number
+): string {
+  let normAngle = angle;
+  while (normAngle > Math.PI) normAngle -= 2 * Math.PI;
+  while (normAngle < -Math.PI) normAngle += 2 * Math.PI;
+
+  const deg = (normAngle * 180) / Math.PI;
+
+  // Upper region
+  if (deg >= -135 && deg < -45) {
+    return getCurvedPathVertical(cx, cy - ch / 2, nx, ny + nh / 2);
+  }
+  // Lower region
+  else if (deg >= 45 && deg < 135) {
+    return getCurvedPathVertical(cx, cy + ch / 2, nx, ny - nh / 2);
+  }
+  // Right region
+  else if (deg >= -45 && deg < 45) {
+    return getCurvedPathHorizontal(cx + cw / 2, cy, nx - nw / 2, ny);
+  }
+  // Left region
+  else {
+    return getCurvedPathHorizontal(cx - cw / 2, cy, nx + nw / 2, ny);
+  }
+}
+
+export default function ProviderMindMap({
   providers,
   isLoading,
 }: ProviderMindMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [size, setSize] = useState({ width: 400, height: 360 });
+  const [size, setSize] = useState({ width: 700, height: 420 });
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [animatedIds, setAnimatedIds] = useState<Set<string>>(new Set());
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
-  // Zoom & Pan states
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  // Pan and Zoom States
+  const [scale, setScale] = useState(1);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const dragStart = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const updateSize = () => {
-      if (containerRef.current) {
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
         setSize({
-          width: containerRef.current.clientWidth || 400,
-          height: containerRef.current.clientHeight || 360,
+          width: entry.contentRect.width,
+          height: Math.max(380, Math.min(520, entry.contentRect.width * 0.55)),
         });
       }
-    };
-
-    updateSize();
-
-    const ro = new ResizeObserver(() => {
-      updateSize();
     });
     ro.observe(containerRef.current);
     return () => ro.disconnect();
   }, []);
-  // Animate nodes in staggered
+
+  // Staggered node animation
   useEffect(() => {
     if (providers.length === 0) return;
     providers.forEach((p, i) => {
       setTimeout(() => {
         setAnimatedIds((prev) => new Set([...prev, p.id]));
-      }, 60 * i);
+      }, 80 * i);
     });
   }, [providers]);
 
-  const cx = size.width / 2;
-  const cy = size.height / 2;
-  
-  // Dynamic radius based on layout size to avoid clipping
-  const radius = Math.min(size.width, size.height) * 0.34;
-
-  const nodeRadius = 24;
-  const centerRadius = 38;
-
-  // Zoom In / Out / Reset functions
-  const handleZoomIn = () => setZoom((z) => Math.min(2.5, z * 1.2));
-  const handleZoomOut = () => setZoom((z) => Math.max(0.4, z / 1.2));
-  const handleReset = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  };
-
-  // Dragging / Panning handlers
-  const handleMouseDown = (e: React.MouseEvent) => {
+  // Handle Drag Gestures
+  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     // Only drag with left click
     if (e.button !== 0) return;
     setIsDragging(true);
-    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    dragStart.current = { x: e.clientX - translate.x, y: e.clientY - translate.y };
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!isDragging) return;
-    setPan({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
+    setTranslate({
+      x: e.clientX - dragStart.current.x,
+      y: e.clientY - dragStart.current.y,
     });
   };
 
@@ -146,18 +155,42 @@ function getCurvedPath(
     setIsDragging(false);
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
-    // Simple zoom on wheel scroll
-    const factor = 1.05;
-    const newZoom = e.deltaY < 0 ? zoom * factor : zoom / factor;
-    setZoom(Math.max(0.4, Math.min(2.5, newZoom)));
+  // Handle Mouse Wheel Zoom
+  const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const zoomFactor = 1.05;
+    let newScale = scale;
+    if (e.deltaY < 0) {
+      newScale = Math.min(scale * zoomFactor, 3.0);
+    } else {
+      newScale = Math.max(scale / zoomFactor, 0.5);
+    }
+    setScale(newScale);
   };
+
+  const zoomIn = () => setScale((prev) => Math.min(prev * 1.15, 3.0));
+  const zoomOut = () => setScale((prev) => Math.max(prev / 1.15, 0.5));
+  const resetZoom = () => {
+    setScale(1);
+    setTranslate({ x: 0, y: 0 });
+  };
+
+  const cx = size.width / 2;
+  const cy = size.height / 2;
+  const radius = Math.min(cx, cy) * 0.68;
+
+  // Node Dimensions
+  const nodeWidth = 168;
+  const nodeHeight = 44;
+  const centerWidth = 130;
+  const centerHeight = 38;
 
   if (isLoading) {
     return (
       <div
         ref={containerRef}
-        className="w-full h-full flex items-center justify-center bg-surface-hover/5 rounded-2xl"
+        className="w-full flex items-center justify-center"
+        style={{ height: size.height }}
       >
         <div className="flex flex-col items-center gap-3 text-text-muted">
           <span className="material-symbols-outlined animate-spin text-[32px] text-primary">
@@ -173,7 +206,8 @@ function getCurvedPath(
     return (
       <div
         ref={containerRef}
-        className="w-full h-full flex flex-col items-center justify-center gap-3 text-text-muted p-6"
+        className="w-full flex flex-col items-center justify-center gap-3 text-text-muted"
+        style={{ height: size.height }}
       >
         <span className="material-symbols-outlined text-5xl opacity-10">
           hub
@@ -191,70 +225,30 @@ function getCurvedPath(
   return (
     <div
       ref={containerRef}
-      className="w-full h-full relative select-none overflow-hidden"
+      className="w-full relative select-none overflow-hidden"
+      style={{ height: size.height }}
     >
-      {/* Zoom UI Controller */}
-      <div className="absolute bottom-4 left-4 z-20 flex flex-col gap-1.5 bg-card/85 backdrop-blur border border-border/60 p-1.5 rounded-xl shadow-md">
-        <button
-          onClick={handleZoomIn}
-          className="size-7 rounded-lg flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface transition-colors active:scale-95"
-          title="Zoom In"
-        >
-          <span className="material-symbols-outlined text-[18px] font-bold">add</span>
-        </button>
-        <button
-          onClick={handleZoomOut}
-          className="size-7 rounded-lg flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface transition-colors active:scale-95"
-          title="Zoom Out"
-        >
-          <span className="material-symbols-outlined text-[18px] font-bold">remove</span>
-        </button>
-        <div className="h-px bg-border/50 my-0.5 mx-1" />
-        <button
-          onClick={handleReset}
-          className="size-7 rounded-lg flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface transition-colors active:scale-95"
-          title="Reset Zoom"
-        >
-          <span className="material-symbols-outlined text-[16px] font-bold">fullscreen_exit</span>
-        </button>
-      </div>
-
       <svg
-        ref={svgRef}
-        width="100%"
-        height="100%"
-        className={`w-full h-full ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+        width={size.width}
+        height={size.height}
+        viewBox={`0 0 ${size.width} ${size.height}`}
+        style={{ overflow: "visible", cursor: isDragging ? "grabbing" : "grab" }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
-        style={{ overflow: "visible" }}
       >
         <defs>
           {/* Radial glow for center */}
           <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="rgba(139,92,246,0.25)" />
-            <stop offset="100%" stopColor="rgba(139,92,246,0)" />
+            <stop offset="0%" stopColor="rgba(232,112,64,0.2)" />
+            <stop offset="100%" stopColor="rgba(232,112,64,0)" />
           </radialGradient>
-
-          {/* Provider gradients */}
-          {providers.map((p) => (
-            <radialGradient
-              key={`grad-${p.id}`}
-              id={`grad-${p.id}`}
-              cx="30%"
-              cy="30%"
-              r="70%"
-            >
-              <stop offset="0%" stopColor={p.color} stopOpacity="1" />
-              <stop offset="100%" stopColor={p.color} stopOpacity="0.75" />
-            </radialGradient>
-          ))}
 
           {/* Glow filter for connections */}
           <filter id="lineGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur" />
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -262,53 +256,31 @@ function getCurvedPath(
           </filter>
 
           {/* Drop shadow for nodes */}
-          <filter id="nodeShadow" x="-30%" y="-30%" width="160%" height="160%">
-            <feDropShadow dx="0" dy="3" stdDeviation="5" floodOpacity="0.2" />
+          <filter id="nodeShadow" x="-10%" y="-10%" width="120%" height="125%">
+            <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#000000" floodOpacity="0.12" />
           </filter>
-
-          {/* Custom line gradients from center to nodes */}
-          {providers.map((p, i) => {
-            const angle = (2 * Math.PI * i) / providers.length - Math.PI / 2;
-            const nx = cx + radius * Math.cos(angle);
-            const ny = cy + radius * Math.sin(angle);
-            return (
-              <linearGradient
-                key={`line-grad-${p.id}`}
-                id={`line-grad-${p.id}`}
-                x1={cx}
-                y1={cy}
-                x2={nx}
-                y2={ny}
-                gradientUnits="userSpaceOnUse"
-              >
-                <stop offset="0%" stopColor="rgba(139,92,246,0.85)" />
-                <stop offset="60%" stopColor={p.color} stopOpacity="0.7" />
-                <stop offset="100%" stopColor={p.color} stopOpacity="0.9" />
-              </linearGradient>
-            );
-          })}
         </defs>
 
         {/* Background grid dots */}
         <pattern
           id="dots"
-          x="0"
-          y="0"
-          width="20"
-          height="20"
+          x={translate.x}
+          y={translate.y}
+          width="24"
+          height="24"
           patternUnits="userSpaceOnUse"
         >
-          <circle cx="1" cy="1" r="0.75" fill="currentColor" opacity="0.05" />
+          <circle cx="1" cy="1" r="1" fill="currentColor" opacity="0.06" />
         </pattern>
-        <rect width="100%" height="100%" fill="url(#dots)" />
+        <rect width={size.width} height={size.height} fill="url(#dots)" />
 
-        {/* Zoom and Pan container */}
-        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`} style={{ transformOrigin: `${cx}px ${cy}px`, transition: isDragging ? "none" : "transform 0.15s ease-out" }}>
+        {/* Transform Group (Zoom & Pan) */}
+        <g transform={`translate(${translate.x}, ${translate.y}) scale(${scale})`}>
           {/* Ambient glow behind center */}
           <circle
             cx={cx}
             cy={cy}
-            r={centerRadius * 2.8}
+            r={160}
             fill="url(#centerGlow)"
           />
 
@@ -320,39 +292,37 @@ function getCurvedPath(
             const isHovered = hoveredId === provider.id;
             const isAnimated = animatedIds.has(provider.id);
 
-            // Calculate precise edge intersections
-            const lineStartX = cx + (centerRadius + 3) * Math.cos(angle);
-            const lineStartY = cy + (centerRadius + 3) * Math.sin(angle);
-            const lineEndX = nx - (nodeRadius + 2) * Math.cos(angle);
-            const lineEndY = ny - (nodeRadius + 2) * Math.sin(angle);
+            const path = getConnectionPath(
+              cx, cy, centerWidth, centerHeight,
+              nx, ny, nodeWidth, nodeHeight,
+              angle
+            );
 
             return (
               <g key={`line-${provider.id}`}>
                 {/* Glow line (behind) */}
                 <path
-                  d={getCurvedPath(lineStartX, lineStartY, lineEndX, lineEndY)}
+                  d={path}
                   fill="none"
-                  stroke={`url(#line-grad-${provider.id})`}
-                  strokeWidth={isHovered ? 4.5 : 2}
-                  strokeOpacity={isAnimated ? (isHovered ? 0.75 : 0.4) : 0}
-                  strokeDasharray={isHovered ? "none" : "4 3"}
+                  stroke={provider.color}
+                  strokeWidth={isHovered ? 2.5 : 1.2}
+                  strokeOpacity={isAnimated ? (isHovered ? 0.5 : 0.2) : 0}
                   filter="url(#lineGlow)"
                   style={{
                     transition: "stroke-opacity 0.4s ease, stroke-width 0.2s ease",
-                    transitionDelay: isAnimated ? "0ms" : `${60 * i}ms`,
+                    transitionDelay: isAnimated ? "0ms" : `${80 * i}ms`,
                   }}
                 />
                 {/* Main line */}
                 <path
-                  d={getCurvedPath(lineStartX, lineStartY, lineEndX, lineEndY)}
+                  d={path}
                   fill="none"
-                  stroke={`url(#line-grad-${provider.id})`}
-                  strokeWidth={isHovered ? 2.5 : 1.2}
-                  strokeOpacity={isAnimated ? (isHovered ? 0.95 : 0.6) : 0}
-                  strokeDasharray={isHovered ? "none" : "4 3"}
+                  stroke="rgba(255, 255, 255, 0.16)"
+                  strokeWidth={isHovered ? 1.5 : 1}
+                  strokeOpacity={isAnimated ? (isHovered ? 0.85 : 0.5) : 0}
                   style={{
                     transition: "stroke-opacity 0.4s ease, stroke-width 0.2s ease",
-                    transitionDelay: isAnimated ? "0ms" : `${60 * i}ms`,
+                    transitionDelay: isAnimated ? "0ms" : `${80 * i}ms`,
                   }}
                 />
               </g>
@@ -367,16 +337,6 @@ function getCurvedPath(
             const isHovered = hoveredId === provider.id;
             const isAnimated = animatedIds.has(provider.id);
 
-            // Push labels radially outward
-            const labelOffsetX = Math.cos(angle) * (nodeRadius + 14);
-            const labelOffsetY = Math.sin(angle) * (nodeRadius + 14);
-            const labelAnchor =
-              Math.cos(angle) > 0.35
-                ? "start"
-                : Math.cos(angle) < -0.35
-                ? "end"
-                : "middle";
-
             return (
               <g
                 key={`node-${provider.id}`}
@@ -385,17 +345,20 @@ function getCurvedPath(
                   opacity: isAnimated ? 1 : 0,
                   transform: isAnimated ? "scale(1)" : `scale(0.5)`,
                   transformOrigin: `${nx}px ${ny}px`,
-                  transition: `opacity 0.4s ease ${60 * i}ms, transform 0.4s cubic-bezier(0.34,1.56,0.64,1) ${60 * i}ms`,
+                  transition: `opacity 0.4s ease ${80 * i}ms, transform 0.4s cubic-bezier(0.34,1.56,0.64,1) ${80 * i}ms`,
                 }}
                 onMouseEnter={() => setHoveredId(provider.id)}
                 onMouseLeave={() => setHoveredId(null)}
               >
-                {/* Hover pulsing halo ring */}
+                {/* Glow ring on hover */}
                 {isHovered && (
-                  <circle
-                    cx={nx}
-                    cy={ny}
-                    r={nodeRadius + 7}
+                  <rect
+                    x={nx - nodeWidth / 2 - 4}
+                    y={ny - nodeHeight / 2 - 4}
+                    width={nodeWidth + 8}
+                    height={nodeHeight + 8}
+                    rx={12}
+                    ry={12}
                     fill="none"
                     stroke={provider.color}
                     strokeWidth="1.5"
@@ -403,50 +366,53 @@ function getCurvedPath(
                   />
                 )}
 
-                {/* Node shadow circle */}
-                <circle
-                  cx={nx}
-                  cy={ny}
-                  r={isHovered ? nodeRadius + 2 : nodeRadius}
-                  fill={provider.color}
-                  opacity="0.12"
+                {/* Node card shape (White background, black text) */}
+                <rect
+                  x={nx - nodeWidth / 2}
+                  y={ny - nodeHeight / 2}
+                  width={nodeWidth}
+                  height={nodeHeight}
+                  rx={10}
+                  ry={10}
+                  fill="#ffffff"
+                  stroke={isHovered ? provider.color : "transparent"}
+                  strokeWidth={1.5}
                   filter="url(#nodeShadow)"
-                  style={{ transition: "r 0.2s ease" }}
-                />
-
-                {/* Main node circle */}
-                <circle
-                  cx={nx}
-                  cy={ny}
-                  r={isHovered ? nodeRadius + 1 : nodeRadius}
-                  fill={`url(#grad-${provider.id})`}
-                  stroke={provider.color}
-                  strokeWidth={isHovered ? 2.5 : 1.5}
-                  strokeOpacity={isHovered ? 1 : 0.55}
-                  filter="url(#nodeShadow)"
-                  style={{ transition: "r 0.2s ease, stroke-width 0.2s ease" }}
-                />
-
-                {/* Icon / Image with failback */}
-                <g
                   style={{
-                    transform: `scale(${isHovered ? 1.15 : 1})`,
-                    transition: "transform 0.2s ease",
-                    transformOrigin: `${nx}px ${ny}px`,
+                    transition: "stroke 0.2s ease",
                   }}
-                >
+                />
+
+                {/* Logo Image / Fallback Text */}
+                <g>
                   {failedImages[provider.id] ? (
-                    getProviderIcon(provider, nx, ny)
+                    <>
+                      <circle
+                        cx={nx - nodeWidth / 2 + 22}
+                        cy={ny}
+                        r={13}
+                        fill={`${provider.color}15`}
+                        stroke={`${provider.color}30`}
+                        strokeWidth={1}
+                      />
+                      {getProviderIcon(provider, nx - nodeWidth / 2 + 22, ny)}
+                    </>
                   ) : (
                     <>
                       <defs>
                         <clipPath id={`clip-${provider.id}`}>
-                          <circle cx={nx} cy={ny} r={13} />
+                          <circle cx={nx - nodeWidth / 2 + 22} cy={ny} r={13} />
                         </clipPath>
                       </defs>
+                      <circle
+                        cx={nx - nodeWidth / 2 + 22}
+                        cy={ny}
+                        r={13}
+                        fill="#f1f5f9"
+                      />
                       <image
                         href={`/providers/${provider.id}.png`}
-                        x={nx - 13}
+                        x={nx - nodeWidth / 2 + 9}
                         y={ny - 13}
                         width={26}
                         height={26}
@@ -459,138 +425,119 @@ function getCurvedPath(
                   )}
                 </g>
 
-                {/* Node label */}
+                {/* Provider name label */}
                 <text
-                  x={nx + labelOffsetX}
-                  y={ny + labelOffsetY}
-                  textAnchor={labelAnchor}
+                  x={nx - nodeWidth / 2 + 44}
+                  y={ny}
+                  textAnchor="start"
                   dominantBaseline="central"
-                  fill={isHovered ? provider.color : "currentColor"}
-                  fontSize="10"
-                  fontWeight={isHovered ? "700" : "600"}
+                  fill="#0f172a"
+                  fontSize="12"
+                  fontWeight="700"
                   fontFamily="Inter, system-ui, sans-serif"
-                  opacity={isHovered ? 1 : 0.75}
-                  style={{ transition: "all 0.2s ease", pointerEvents: "none" }}
                 >
-                  {provider.name.length > 10
-                    ? provider.name.slice(0, 10) + "…"
-                    : provider.name}
+                  {provider.name}
                 </text>
               </g>
             );
           })}
 
-          {/* Central Tinobot node */}
+          {/* Center Tinobot node */}
           <g>
-            {/* Ambient pulsing ring */}
-            <circle
-              cx={cx}
-              cy={cy}
-              r={centerRadius + 12}
+            {/* Pulsing ring animation */}
+            <rect
+              x={cx - centerWidth / 2 - 10}
+              y={cy - centerHeight / 2 - 10}
+              width={centerWidth + 20}
+              height={centerHeight + 20}
+              rx={16}
+              ry={16}
               fill="none"
-              stroke="rgba(139,92,246,0.18)"
-              strokeWidth="1"
+              stroke="rgba(232,112,64,0.15)"
+              strokeWidth="1.5"
             >
               <animate
-                attributeName="r"
-                values={`${centerRadius + 8};${centerRadius + 18};${centerRadius + 8}`}
-                dur="3.2s"
-                repeatCount="indefinite"
-              />
-              <animate
                 attributeName="stroke-opacity"
-                values="0.22;0.06;0.22"
-                dur="3.2s"
+                values="0.25;0.05;0.25"
+                dur="3s"
                 repeatCount="indefinite"
               />
-            </circle>
+            </rect>
 
-            {/* Inner background */}
-            <circle
-              cx={cx}
-              cy={cy}
-              r={centerRadius + 3}
-              fill="rgba(139,92,246,0.08)"
-            />
-
-            {/* Center border circle */}
-            <circle
-              cx={cx}
-              cy={cy}
-              r={centerRadius}
-              fill="#18182b"
-              stroke="rgba(139,92,246,0.8)"
-              strokeWidth="2.2"
+            {/* Center card shape (Dark background, orange border) */}
+            <rect
+              x={cx - centerWidth / 2}
+              y={cy - centerHeight / 2}
+              width={centerWidth}
+              height={centerHeight}
+              rx={10}
+              ry={10}
+              fill="#0d0d15"
+              stroke="#e87040"
+              strokeWidth="1.8"
               filter="url(#nodeShadow)"
             />
 
-            {/* Tinobot Title */}
+            {/* Tinobot Text */}
             <text
               x={cx}
-              y={cy - 5}
+              y={cy}
               textAnchor="middle"
               dominantBaseline="central"
-              fill="rgba(139,92,246,1)"
+              fill="#e87040"
               fontSize="12.5"
               fontWeight="800"
               fontFamily="Inter, system-ui, sans-serif"
-              letterSpacing="-0.5"
+              letterSpacing="0.2"
             >
               Tinobot
             </text>
-            <text
-              x={cx}
-              y={cy + 10}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fill="rgba(139,92,246,0.5)"
-              fontSize="7.5"
-              fontWeight="700"
-              fontFamily="Inter, system-ui, sans-serif"
-              letterSpacing="0.8"
-            >
-              AI GATEWAY
-            </text>
           </g>
-
-          {/* Tooltip on Node Hover */}
-          {hoveredId && (() => {
-            const prov = providers.find((p) => p.id === hoveredId);
-            if (!prov) return null;
-            const idx = providers.indexOf(prov);
-            const angle = (2 * Math.PI * idx) / providers.length - Math.PI / 2;
-            const nx = cx + radius * Math.cos(angle);
-            const ny = cy + radius * Math.sin(angle);
-            const pillY = ny - nodeRadius - 16;
-            return (
-              <g>
-                <rect
-                  x={nx - 36}
-                  y={pillY - 9}
-                  width={72}
-                  height={18}
-                  rx="9"
-                  fill={prov.color}
-                  opacity="0.9"
-                />
-                <text
-                  x={nx}
-                  y={pillY}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fill="white"
-                  fontSize="8.5"
-                  fontWeight="700"
-                  fontFamily="Inter, system-ui, sans-serif"
-                  letterSpacing="0.5"
-                >
-                  {prov.id.toUpperCase()}
-                </text>
-              </g>
-            );
-          })()}
         </g>
       </svg>
+
+      {/* Floating Zoom & Pan Controls in Bottom-Left */}
+      <div className="absolute left-4 bottom-4 flex flex-col bg-card/90 border border-border/80 rounded-lg shadow-lg overflow-hidden z-20 backdrop-blur-md">
+        <button
+          onClick={zoomIn}
+          className="w-8 h-8 flex items-center justify-center text-text-main hover:bg-surface border-b border-border/50 transition-colors font-bold text-lg"
+          title="Zoom In"
+        >
+          +
+        </button>
+        <button
+          onClick={zoomOut}
+          className="w-8 h-8 flex items-center justify-center text-text-main hover:bg-surface border-b border-border/50 transition-colors font-bold text-lg"
+          title="Zoom Out"
+        >
+          −
+        </button>
+        <button
+          onClick={resetZoom}
+          className="w-8 h-8 flex items-center justify-center text-text-main hover:bg-surface transition-colors"
+          title="Reset Zoom"
+        >
+          <span className="material-symbols-outlined text-[16px]">crop_free</span>
+        </button>
+      </div>
+
+      {/* Legend */}
+      <div className="absolute right-4 bottom-4 flex flex-wrap justify-end gap-3 px-2 z-10 pointer-events-none">
+        {providers.map((p) => (
+          <div
+            key={p.id}
+            className="flex items-center gap-1.5 opacity-80"
+          >
+            <div
+              className="w-2.5 h-2.5 rounded-full border border-white/10"
+              style={{ backgroundColor: p.color }}
+            />
+            <span className="text-[10px] font-bold text-text-muted">
+              {p.name}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
