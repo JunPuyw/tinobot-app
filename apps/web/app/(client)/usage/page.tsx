@@ -233,9 +233,9 @@ export default function UserUsagePage() {
 
       {/* Mind Map + Timeline Chart Section */}
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
-        {/* Mind Map Section (Col span 4) */}
-        <Card className="lg:col-span-4 p-6 relative overflow-hidden group border-border/50 shadow-sm flex flex-col h-[480px]">
-          <div className="mb-4 shrink-0">
+        {/* Mind Map Section (Col span 6, padding="none" to make it full card) */}
+        <Card padding="none" className="lg:col-span-6 relative overflow-hidden group border-border/50 shadow-sm flex flex-col h-[480px]">
+          <div className="absolute top-6 left-6 z-20 pointer-events-none">
             <h3 className="text-lg font-bold flex items-center gap-3 text-text-main">
               <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg">hub</span>
               Infrastructure Topology
@@ -244,17 +244,17 @@ export default function UserUsagePage() {
               Active routing paths and connected provider endpoints
             </p>
           </div>
-          <div className="w-full flex-1 bg-surface-hover/20 rounded-2xl border border-border/40 overflow-hidden relative">
+          <div className="w-full flex-1 overflow-hidden relative">
             <ProviderMindMap providers={connectedProviders} isLoading={providersLoading} />
           </div>
         </Card>
 
-        {/* Chart Section (Col span 6) */}
-        <Card className="lg:col-span-6 p-6 relative overflow-hidden group border-border/50 shadow-sm flex flex-col h-[480px]">
+        {/* Chart Section (Col span 4) */}
+        <Card className="lg:col-span-4 p-6 relative overflow-hidden group border-border/50 shadow-sm flex flex-col h-[480px]">
           <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between shrink-0">
             <h3 className="text-lg font-bold flex items-center gap-3 text-text-main">
               <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg">analytics</span>
-              Timeline Visualization
+              Timeline
             </h3>
             <div className="flex w-full items-center gap-1 rounded-xl border border-border/50 bg-surface/50 p-1 sm:w-auto shrink-0">
               <button
