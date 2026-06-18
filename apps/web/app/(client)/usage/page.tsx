@@ -235,7 +235,7 @@ export default function UserUsagePage() {
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
         {/* Mind Map Section (Col span 6, padding="none" to make it full card) */}
         <Card padding="none" className="lg:col-span-6 relative overflow-hidden group border-border/50 shadow-sm flex flex-col h-[480px]">
-          <div className="absolute top-6 left-6 z-20 pointer-events-none">
+          <div className="p-6 pb-2 shrink-0">
             <h3 className="text-lg font-bold flex items-center gap-3 text-text-main">
               <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg">hub</span>
               Infrastructure Topology
@@ -244,7 +244,7 @@ export default function UserUsagePage() {
               Active routing paths and connected provider endpoints
             </p>
           </div>
-          <div className="w-full flex-1 overflow-hidden relative">
+          <div className="w-full flex-1 overflow-hidden relative min-h-0">
             <ProviderMindMap providers={connectedProviders} isLoading={providersLoading} />
           </div>
         </Card>

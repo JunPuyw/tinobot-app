@@ -63,9 +63,7 @@ function getCurvedPath(
   const cx2 = x1 + dx * 0.65;
   const cy2 = y2 - dy * 0.1;
   return `M ${x1} ${y1} C ${cx1} ${cy1} ${cx2} ${cy2} ${x2} ${y2}`;
-}
-
-export default function ProviderMindMap({
+}export default function ProviderMindMap({
   providers,
   isLoading,
 }: ProviderMindMapProps) {
@@ -84,18 +82,23 @@ export default function ProviderMindMap({
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
+    const updateSize = () => {
+      if (containerRef.current) {
         setSize({
-          width: entry.contentRect.width,
-          height: entry.contentRect.height || 360,
+          width: containerRef.current.clientWidth || 400,
+          height: containerRef.current.clientHeight || 360,
         });
       }
+    };
+
+    updateSize();
+
+    const ro = new ResizeObserver(() => {
+      updateSize();
     });
     ro.observe(containerRef.current);
     return () => ro.disconnect();
   }, []);
-
   // Animate nodes in staggered
   useEffect(() => {
     if (providers.length === 0) return;
