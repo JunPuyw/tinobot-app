@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import Script from "next/script";
 import "./globals.css";
+import SupportWidget from "./components/SupportWidget";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -15,6 +16,11 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "Tinobot",
   description: "AI endpoint proxy with a web dashboard.",
+  icons: {
+    icon: "/icons/logo.jpg",
+    shortcut: "/icons/logo.jpg",
+    apple: "/icons/logo.jpg",
+  },
 };
 
 const GA_MEASUREMENT_ID = "G-HX4BSFF8BL";
@@ -40,6 +46,7 @@ export default function RootLayout({
       </Script>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         {children}
+        <SupportWidget />
       </body>
     </html>
   );

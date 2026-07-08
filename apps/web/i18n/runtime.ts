@@ -57,6 +57,7 @@ const translations: Record<Locale, Record<string, string>> = {
     "Create": "Tạo",
     "Update": "Cập nhật",
     "Search": "Tìm kiếm",
+    "Close": "Đóng",
   },
 };
 
