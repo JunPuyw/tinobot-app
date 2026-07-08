@@ -100,7 +100,7 @@ export async function POST(request: Request) {
       : `${origin}/billing?cancelled=true`;
 
     // Create Polar Checkout Session using DYNAMIC PRICING (Ad-hoc prices)
-    const response = await fetch("https://sandbox-api.polar.sh/v1/checkouts/", {
+    const response = await fetch("https://api.polar.sh/v1/checkouts/", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${POLAR_ACCESS_TOKEN}`,

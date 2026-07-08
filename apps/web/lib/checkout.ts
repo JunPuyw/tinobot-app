@@ -75,7 +75,7 @@ export async function handlePolarCheckout(request: Request) {
       ? `${origin}/portal/billing?cancelled=true`
       : `${origin}/billing?cancelled=true`;
 
-    const response = await fetch("https://sandbox-api.polar.sh/v1/checkouts/", {
+    const response = await fetch("https://api.polar.sh/v1/checkouts/", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${POLAR_ACCESS_TOKEN}`,
